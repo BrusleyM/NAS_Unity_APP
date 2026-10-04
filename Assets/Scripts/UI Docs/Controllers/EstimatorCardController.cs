@@ -342,7 +342,8 @@ namespace NAS.UI.Controllers
                 interestRate = _interestRate,
                 estimatedMonthly = monthly,
                 balloonAmount = balloonAmount,
-                savedConfigurationId = GameManager.Instance != null ? GameManager.Instance.SelectedConfigurationId : 0
+                savedConfigurationId = GameManager.Instance != null ? GameManager.Instance.SelectedConfigurationId : 0,
+                customerSessionId = GameManager.Instance != null ? GameManager.Instance.TelemetrySessionId : 0
             };
 
             SetSubmitting(true);

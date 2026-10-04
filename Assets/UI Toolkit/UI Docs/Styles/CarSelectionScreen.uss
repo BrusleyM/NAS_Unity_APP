@@ -219,3 +219,28 @@
 .unity-scroller {
     display: none;
 }
+
+
+/* Shows the chosen dealership under the title; tapping it goes back to the
+   dealership list. */
+.change-dealership-button {
+    flex-direction: row;
+    align-items: center;
+    margin: 12px 0 0 0;
+    padding: 6px 12px;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.2);
+    border-radius: 16px;
+}
+
+.change-dealership-name {
+    font-size: 12px;
+    color: rgb(192, 192, 192);
+}
+
+.change-dealership-action {
+    margin-left: 8px;
+    font-size: 12px;
+    color: rgb(0, 212, 255);
+}

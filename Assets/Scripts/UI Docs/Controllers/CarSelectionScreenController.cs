@@ -47,6 +47,7 @@ namespace NAS.UI.Controllers
         private VisualElement _carsContainer;
         private Label _emptyStateLabel;
         private Button _startButton;
+        private Button _changeDealershipButton;
         private bool _isDragging;
         private float _dragStartX;
         private int _dragPointerId = -1;
@@ -105,6 +106,16 @@ namespace NAS.UI.Controllers
             _carsContainer = root.Q<VisualElement>("cars-container");
             _emptyStateLabel = root.Q<Label>("empty-state-label");
             _startButton = root.Q<Button>("start-ar-button");
+            _changeDealershipButton = root.Q<Button>("change-dealership-button");
+            var dealershipNameLabel = root.Q<Label>("dealership-name-label");
+            var dealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
+            if (dealershipNameLabel != null && dealership != null)
+                dealershipNameLabel.text = dealership.name;
+            if (_changeDealershipButton != null)
+            {
+                _changeDealershipButton.style.display = dealership != null ? DisplayStyle.Flex : DisplayStyle.None;
+                _changeDealershipButton.clicked += OnChangeDealershipClicked;
+            }
 
             _pager = new CarPager(_carsContainer, _carCardTemplate, RequestCarThumbnail);
 
@@ -146,7 +157,12 @@ namespace NAS.UI.Controllers
             _apiBaseUrl = resolved.Settings.BaseUrl;
 
             string accessToken = GameManager.Instance != null ? GameManager.Instance.AccessToken : null;
-            _vehicleApi.GetVehicles(dealershipId: null, accessToken, OnVehiclesLoaded);
+            // Only the dealership the customer chose, so whichever car they
+            // pick (and the lead it produces) belongs to it. Null only if
+            // nothing was chosen, which the router shouldn't allow.
+            var selectedDealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
+            int? dealershipId = selectedDealership != null ? selectedDealership.id : (int?)null;
+            _vehicleApi.GetVehicles(dealershipId, accessToken, OnVehiclesLoaded);
         }
 
         private void OnVehiclesLoaded(ApiResult<List<CarData>> result)
@@ -307,6 +323,8 @@ namespace NAS.UI.Controllers
             _startButton.SetEnabled(hasResults);
         }
 
+        private void OnChangeDealershipClicked() => EventBus.Publish(new ChangeDealershipRequestedEvent());
+
         private void OnStartARClicked()
         {
             if (_pager == null || !_pager.HasCars)
@@ -332,6 +350,8 @@ namespace NAS.UI.Controllers
                 _searchField.UnregisterValueChangedCallback(_onSearchChanged);
             if (_startButton != null)
                 _startButton.clicked -= OnStartARClicked;
+            if (_changeDealershipButton != null)
+                _changeDealershipButton.clicked -= OnChangeDealershipClicked;
 
             if (_carsScrollView != null)
             {

@@ -45,6 +45,13 @@ namespace NAS.Core
         public User CurrentUser { get; private set; }
         public string AccessToken { get; private set; }
         public VehicleInfo SelectedCar { get; private set; }
+        // The dealership the customer chose this login. Null until they pick
+        // one (reset on every login - they might be somewhere else today).
+        public DealershipInfo SelectedDealership { get; private set; }
+        // Last dealership picked on this device, remembered across launches
+        // only so the list can highlight it - never auto-selected.
+        private const string LastDealershipIdPrefKey = "NAS.LastDealershipId";
+        public int LastDealershipId => PlayerPrefs.GetInt(LastDealershipIdPrefKey, 0);
         public bool ReturnToEstimator { get; set; } = false;
         // Set by ParentPageController once the splash card has been shown/dismissed
         // for this app session, so returning to "Main App" from the AR scene (Back/
@@ -127,6 +134,7 @@ namespace NAS.Core
             // as defense in depth, so GameManager is guaranteed ready before
             // anything else in the scene, for any event it's ever given.
             EventBus.Subscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Subscribe<DealershipSelectedEvent>(OnDealershipSelected);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
@@ -134,6 +142,7 @@ namespace NAS.Core
         private void OnDisable()
         {
             EventBus.Unsubscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Unsubscribe<DealershipSelectedEvent>(OnDealershipSelected);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
@@ -163,8 +172,52 @@ namespace NAS.Core
         {
             CurrentUser = evt.User;
             AccessToken = evt.AccessToken;
+            SelectedDealership = null; // chosen fresh every login
             EventBus.Publish(new SessionAuthenticatedEvent(CurrentUser, AccessToken));
             StartTelemetrySession();
+        }
+
+        private void OnDealershipSelected(DealershipSelectedEvent evt)
+        {
+            var dealership = evt.Dealership;
+            if (dealership == null || dealership.id <= 0) return;
+
+            // A car (and any saved configuration) from another dealership's
+            // catalog must not carry over.
+            if (SelectedDealership == null || SelectedDealership.id != dealership.id)
+            {
+                SelectedCar = null;
+                SelectedConfigurationId = 0;
+            }
+            SelectedDealership = dealership;
+            PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
+            EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
+            ApplyDealershipToTelemetrySession();
+        }
+
+        // Tells the backend which dealership this session is for, so the
+        // lead/activity it produces is shown to that dealership's staff.
+        // Safe to call again (idempotent server-side). If the telemetry
+        // session hasn't started yet (id still 0), StartTelemetrySession's
+        // callback calls this once it has.
+        private void ApplyDealershipToTelemetrySession()
+        {
+            if (SelectedDealership == null || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new SetSessionDealershipRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                dealershipId = SelectedDealership.id
+            };
+            telemetryApi.SetSessionDealership(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] Failed to set session dealership: {result.Error.Detail}");
+            });
         }
 
         private void OnCarSelected(CarSelectedEvent evt)
@@ -199,7 +252,11 @@ namespace NAS.Core
             telemetryApi.StartSession(request, AccessToken, result =>
             {
                 if (result.Success)
+                {
                     TelemetrySessionId = result.Value.id;
+                    // The customer may have picked a dealership before this call returned.
+                    ApplyDealershipToTelemetrySession();
+                }
                 else
                     Debug.LogWarning($"[NAS Telemetry] Failed to start session: {result.Error.Detail}");
             });

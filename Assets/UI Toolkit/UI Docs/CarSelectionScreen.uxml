@@ -4,6 +4,10 @@
         <ui:VisualElement name="header-section" class="header">
             <ui:Label text="Select Your Car" class="title"/>
             <ui:Label text="Choose a model to begin your AR experience" class="subtitle"/>
+            <ui:Button name="change-dealership-button" class="change-dealership-button">
+                <ui:Label name="dealership-name-label" text="" class="change-dealership-name"/>
+                <ui:Label text="Change" class="change-dealership-action"/>
+            </ui:Button>
         </ui:VisualElement>
         <ui:VisualElement name="tools-container" class="tools-container">
             <ui:VisualElement name="types-container" class="dropdown-container">

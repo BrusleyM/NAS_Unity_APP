@@ -74,8 +74,8 @@ reading data derived from a same-frame event the way the fixed bug was —
 they're a separate, milder concern (coupling/testability), still worth the
 dedicated pass mentioned above eventually, just not urgent or bug-causing.
 
-**Screen flow (current order):** Auth → car selection → AR placement →
-affordability calculator/estimator. `ParentPageController` is a pure
+**Screen flow (current order):** Auth → dealership selection → car selection →
+AR placement → affordability calculator/estimator. `ParentPageController` is a pure
 router — it holds `VisualTreeAsset` references for each screen (assigned in
 the Inspector) and swaps `_cardContainer`'s content in response to events. It
 does not know how login/register/auth work, only which screen to show next.
@@ -90,6 +90,25 @@ needs data from its creator (e.g. `CarSelectionScreenController` needs a
 `VisualTreeAsset` for the card template) uses an explicit `Initialize(...)` method
 called right after `AddComponent`, with `OnEnable` doing only DOM-querying/event
 wiring that doesn't depend on that data.
+
+## Dealership selection (before car selection)
+
+The customer picks where they're buying from (QR-code scanning is a possible v2).
+`DealershipSelectionController` (UXML in `Assets/Resources/UI/DealershipSelection.uxml`,
+loaded by `ParentPageController` via `Resources.Load` so no scene edit was needed)
+lists `GET /api/customer/dealerships` (only dealerships with active vehicles) and
+publishes `DealershipSelectedEvent`. Same raw/`Session*Event` split as car
+selection: `GameManager` is the only raw subscriber, sets `SelectedDealership`
+(cleared on every login, and clears `SelectedCar`/`SelectedConfigurationId` if the
+dealership changed), republishes `SessionDealershipSelectedEvent`, and tells the
+backend via `POST /api/telemetry/session/dealership` (deferred until
+`TelemetrySessionId` exists). The car list is fetched with that dealership's id, so
+a lead (which takes its dealership from the vehicle) always lands with the chosen
+one; the estimator/test-drive requests also send `customerSessionId` so the backend
+rejects a vehicle from a different dealership (409). The last choice is only
+remembered (PlayerPrefs) to highlight it, never auto-selected. The car selection
+screen shows the chosen dealership with a "Change" control
+(`ChangeDealershipRequestedEvent`).
 
 ## Auth (`Assets/Scripts/Core/Auth/`)
 

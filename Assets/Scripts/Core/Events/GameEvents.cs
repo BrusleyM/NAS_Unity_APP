@@ -134,6 +134,36 @@ namespace NAS.Core.Events
         public SessionCarSelectedEvent(VehicleInfo vehicle) => Vehicle = vehicle;
     }
 
+    // ---- Dealership selection -----------------------------------------------------
+    // The customer chooses which dealership they're buying from (QR-code
+    // scanning is a possible v2). Same raw/Session* split as car selection:
+    // GameManager is the only direct subscriber to the raw event.
+
+    /// <summary>
+    /// Raised by DealershipSelectionController when the user picks a dealership.
+    /// The raw fact - GameManager is the only thing that should subscribe to it
+    /// directly; everything else should use SessionDealershipSelectedEvent.
+    /// </summary>
+    public readonly struct DealershipSelectedEvent
+    {
+        public readonly DealershipInfo Dealership;
+        public DealershipSelectedEvent(DealershipInfo dealership) => Dealership = dealership;
+    }
+
+    /// <summary>
+    /// Raised by GameManager right after it applies a DealershipSelectedEvent to
+    /// its own SelectedDealership (and cleared any car chosen from another
+    /// dealership). Subscribe to THIS if you need to read GameManager state.
+    /// </summary>
+    public readonly struct SessionDealershipSelectedEvent
+    {
+        public readonly DealershipInfo Dealership;
+        public SessionDealershipSelectedEvent(DealershipInfo dealership) => Dealership = dealership;
+    }
+
+    /// <summary>Raised by the car selection screen's "Change dealership" control - ParentPageController reacts by showing the dealership list again.</summary>
+    public readonly struct ChangeDealershipRequestedEvent { }
+
     // ---- AR scene lifecycle -------------------------------------------------------
     // AR Scene is loaded additively exactly once (see GameManager.IsArSceneLoaded)
     // and never reloaded after that - these two drive showing/hiding it on

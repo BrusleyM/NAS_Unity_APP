@@ -18,6 +18,10 @@ namespace NAS.Core.Networking
             _coroutineRunner.StartCoroutine(_client.PostJson<CustomerSessionTelemetryRequest, TelemetryAckResponse>(
                 "api/telemetry/session", request, completed, accessToken));
 
+        public void SetSessionDealership(SetSessionDealershipRequest request, string accessToken, Action<ApiResult<TelemetryAckResponse>> completed) =>
+            _coroutineRunner.StartCoroutine(_client.PostJson<SetSessionDealershipRequest, TelemetryAckResponse>(
+                "api/telemetry/session/dealership", request, completed, accessToken));
+
         public void EndSession(EndCustomerSessionRequest request, string accessToken, Action<ApiResult<TelemetryAckResponse>> completed) =>
             _coroutineRunner.StartCoroutine(_client.PostJson<EndCustomerSessionRequest, TelemetryAckResponse>(
                 "api/telemetry/session/end", request, completed, accessToken));

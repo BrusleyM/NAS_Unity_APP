@@ -1,0 +1,14 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/DealershipSelection.uss"/>
+    <ui:VisualElement name="dealership-selection-root" class="dealership-root">
+        <ui:VisualElement name="dealership-header" class="dealership-header">
+            <ui:Label text="Choose a Dealership" class="dealership-title"/>
+            <ui:Label text="Where are you buying from?" class="dealership-subtitle"/>
+        </ui:VisualElement>
+        <ui:ScrollView name="dealership-list" class="dealership-list" mode="Vertical"/>
+        <ui:VisualElement name="dealership-status" class="dealership-status">
+            <ui:Label name="dealership-status-label" text="Loading dealerships..." class="dealership-status-label"/>
+            <ui:Button name="dealership-retry-button" text="Try again" class="dealership-retry-button"/>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
