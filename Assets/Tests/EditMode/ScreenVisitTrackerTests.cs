@@ -157,6 +157,45 @@ namespace NAS.Tests
         }
 
         [Test]
+        public void AVisitOfExactlyTheMinimumLengthIsKept()
+        {
+            _tracker.Show(ScreenNames.Login);
+            Advance(ScreenVisitTracker.MinSeconds);
+            _tracker.Stop();
+
+            Assert.AreEqual(1, _visits.Count);
+        }
+
+        [Test]
+        public void QuittingWhileBackgroundedDoesNotReopenTheScreenOnResume()
+        {
+            _tracker.Show(ScreenNames.ArViewport);
+            Advance(25);
+            _tracker.Pause();
+            Advance(60);
+            _tracker.Stop();
+            _tracker.Resume();
+            Advance(30);
+            _tracker.Stop();
+
+            Assert.AreEqual(1, _visits.Count);
+            Assert.IsNull(_tracker.CurrentScreen);
+        }
+
+        [Test]
+        public void AnEmptyScreenNameIsIgnored()
+        {
+            _tracker.Show("");
+            Advance(10);
+            _tracker.Show(null);
+            Advance(10);
+            _tracker.Stop();
+
+            Assert.IsEmpty(_visits);
+            Assert.IsNull(_tracker.CurrentScreen);
+        }
+
+        [Test]
         public void ScreenNamesAreSnakeCaseWhichIsWhatTheBackendAccepts()
         {
             var names = new[]
