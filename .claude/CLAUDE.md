@@ -110,6 +110,24 @@ remembered (PlayerPrefs) to highlight it, never auto-selected. The car selection
 screen shows the chosen dealership with a "Change" control
 (`ChangeDealershipRequestedEvent`).
 
+## Telemetry events that feed the ML model
+
+`GameManager` owns sending telemetry events (`LogActivityEvent`, best-effort, skipped until
+`TelemetrySessionId` exists). Besides `vehicle_viewed` it records two that the buyer
+classifier uses as features (`ar_load_failures`, `dealership_changes` - see `NAS_ML`'s
+README, "v4 candidate"):
+
+- `ar_load_failed` - `SelectedCarModelLoader` publishes `ArModelLoadFailedEvent(reason)` at each
+  place it falls back to the placeholder (`no_model_key`, `download`, `parse`, `instantiate`).
+  A customer who gave up because the car wouldn't load looks very different from one who lost
+  interest.
+- `dealership_changed` - logged when the customer picks a *different* dealership after already
+  choosing one (the first choice isn't a change).
+
+Both send `vehicleModelId = 0` when there is no vehicle (JsonUtility can't send a null int);
+the backend stores `<= 0` as null. Until a build with these ships the backend sees 0 for both,
+which the model treats as "none reported", not "none happened".
+
 ## Auth (`Assets/Scripts/Core/Auth/`)
 
 `AuthController` is **not** a mock — it's backed by a real API layer

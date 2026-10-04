@@ -135,6 +135,7 @@ namespace NAS.Core
             // anything else in the scene, for any event it's ever given.
             EventBus.Subscribe<AuthSucceededEvent>(OnAuthSucceeded);
             EventBus.Subscribe<DealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Subscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
@@ -143,6 +144,7 @@ namespace NAS.Core
         {
             EventBus.Unsubscribe<AuthSucceededEvent>(OnAuthSucceeded);
             EventBus.Unsubscribe<DealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Unsubscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
@@ -184,7 +186,8 @@ namespace NAS.Core
 
             // A car (and any saved configuration) from another dealership's
             // catalog must not carry over.
-            if (SelectedDealership == null || SelectedDealership.id != dealership.id)
+            var changed = SelectedDealership != null && SelectedDealership.id != dealership.id;
+            if (SelectedDealership == null || changed)
             {
                 SelectedCar = null;
                 SelectedConfigurationId = 0;
@@ -193,7 +196,16 @@ namespace NAS.Core
             PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
             EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
             ApplyDealershipToTelemetrySession();
+            // Switching after already choosing is a signal in itself (picked the
+            // wrong place, or shopping around); the first choice is not.
+            if (changed)
+                LogActivityEvent("dealership_changed", 0);
         }
+
+        // The selected car's model could not be loaded - the customer is looking
+        // at a placeholder (or nothing), which explains an abandoned AR visit.
+        private void OnArModelLoadFailed(ArModelLoadFailedEvent evt) =>
+            LogActivityEvent("ar_load_failed", SelectedCar != null ? SelectedCar.id : 0);
 
         // Tells the backend which dealership this session is for, so the
         // lead/activity it produces is shown to that dealership's staff.
@@ -302,7 +314,17 @@ namespace NAS.Core
         // enhancement, not something already being claimed here.
         private void LogVehicleViewedEvent(VehicleInfo vehicle)
         {
-            if (vehicle == null || vehicle.id <= 0 || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            if (vehicle == null || vehicle.id <= 0) return;
+            LogActivityEvent("vehicle_viewed", vehicle.id);
+        }
+
+        // Best-effort, same as every other telemetry send: skipped when the
+        // session isn't ready, a failure only logs a warning. vehicleId 0 means
+        // "no vehicle" (JsonUtility can't send a null int; the backend treats
+        // <= 0 as unset).
+        private void LogActivityEvent(string eventType, int vehicleId)
+        {
+            if (TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
 
             var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
             if (resolved.Settings == null) return;
@@ -312,14 +334,14 @@ namespace NAS.Core
             {
                 customerSessionId = TelemetrySessionId,
                 clientEventId = Guid.NewGuid().ToString(),
-                eventType = "vehicle_viewed",
+                eventType = eventType,
                 occurredAt = DateTime.UtcNow.ToString("o"),
-                vehicleModelId = vehicle.id
+                vehicleModelId = vehicleId
             };
             telemetryApi.LogEvent(request, AccessToken, result =>
             {
                 if (!result.Success)
-                    Debug.LogWarning($"[NAS Telemetry] vehicle_viewed event failed: {result.Error.Detail}");
+                    Debug.LogWarning($"[NAS Telemetry] {eventType} event failed: {result.Error.Detail}");
             });
         }
 

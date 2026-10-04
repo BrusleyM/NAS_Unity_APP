@@ -180,6 +180,19 @@ namespace NAS.Core.Events
     /// <summary>Raised by AR flow controllers when the user backs out to the estimator card.</summary>
     public readonly struct ReturnToEstimatorRequestedEvent { }
 
+    /// <summary>
+    /// Raised by SelectedCarModelLoader when the selected car's 3D model could not
+    /// be loaded and the placeholder is used instead. GameManager records it as an
+    /// ar_load_failed activity event - a customer who gave up because the car
+    /// would not load looks very different from one who lost interest.
+    /// </summary>
+    public readonly struct ArModelLoadFailedEvent
+    {
+        // "no_model_key" | "download" | "parse" | "instantiate"
+        public readonly string Reason;
+        public ArModelLoadFailedEvent(string reason) => Reason = reason;
+    }
+
     /// <summary>Raised by ObjectPlacerController right after it instantiates the placed car in the AR scene.</summary>
     public readonly struct CarPlacedEvent
     {

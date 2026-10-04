@@ -85,6 +85,7 @@ namespace NAS.Core
                 if (string.IsNullOrEmpty(modelKey))
                 {
                     Debug.LogWarning("SelectedCarModelLoader: no tigrisModelKey for the selected car - using the default placeholder.");
+                    EventBus.Publish(new ArModelLoadFailedEvent("no_model_key"));
                     _objectPlacer.EnablePlacement();
                     return;
                 }
@@ -95,6 +96,7 @@ namespace NAS.Core
                 if (!downloadResult.IsSuccess)
                 {
                     Debug.LogWarning($"SelectedCarModelLoader: download failed for '{modelKey}': {downloadResult.ErrorMessage} - using the default placeholder.");
+                    EventBus.Publish(new ArModelLoadFailedEvent("download"));
                     _objectPlacer.EnablePlacement();
                     return;
                 }
@@ -106,6 +108,7 @@ namespace NAS.Core
                 if (!loadOk)
                 {
                     Debug.LogWarning($"SelectedCarModelLoader: glTF parse failed for '{modelKey}' - using the default placeholder.");
+                    EventBus.Publish(new ArModelLoadFailedEvent("parse"));
                     _objectPlacer.EnablePlacement();
                     return;
                 }
@@ -135,6 +138,7 @@ namespace NAS.Core
                     Debug.LogWarning($"SelectedCarModelLoader: instantiate failed for '{modelKey}' - using the default placeholder.");
                     Destroy(modelRoot);
                     _currentModelRoot = null;
+                    EventBus.Publish(new ArModelLoadFailedEvent("instantiate"));
                     _objectPlacer.EnablePlacement();
                     return;
                 }
