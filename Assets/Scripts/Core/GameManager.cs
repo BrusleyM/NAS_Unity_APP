@@ -108,6 +108,15 @@ namespace NAS.Core
 
         private IStorageService _storage;
 
+        // Times each screen the customer spends time on (see ScreenVisitTracker).
+        // Visits can finish before there is anywhere to send them - splash, login
+        // and register all come before the telemetry session exists - so they wait
+        // here and are sent as soon as it does.
+        private ScreenVisitTracker _screens;
+        private readonly System.Collections.Generic.List<ScreenVisitTracker.Visit> _pendingVisits =
+            new System.Collections.Generic.List<ScreenVisitTracker.Visit>();
+        private const int MaxPendingVisits = 50;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -119,6 +128,7 @@ namespace NAS.Core
             DontDestroyOnLoad(gameObject);
 
             InitializeStorage();
+            _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
             // Subscribing here rather than in OnEnable() is deliberate: Unity
             // guarantees every object's Awake() finishes before any object's
@@ -134,6 +144,7 @@ namespace NAS.Core
             // as defense in depth, so GameManager is guaranteed ready before
             // anything else in the scene, for any event it's ever given.
             EventBus.Subscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Subscribe<ScreenShownEvent>(OnScreenShown);
             EventBus.Subscribe<DealershipSelectedEvent>(OnDealershipSelected);
             EventBus.Subscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
@@ -143,6 +154,7 @@ namespace NAS.Core
         private void OnDisable()
         {
             EventBus.Unsubscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Unsubscribe<ScreenShownEvent>(OnScreenShown);
             EventBus.Unsubscribe<DealershipSelectedEvent>(OnDealershipSelected);
             EventBus.Unsubscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
@@ -160,10 +172,22 @@ namespace NAS.Core
         private void OnApplicationPause(bool pauseStatus)
         {
             if (pauseStatus)
+            {
+                // Close the current screen first, so its visit is sent before the session end.
+                _screens?.Pause();
                 EndTelemetrySession();
+            }
+            else
+            {
+                _screens?.Resume();
+            }
         }
 
-        private void OnApplicationQuit() => EndTelemetrySession();
+        private void OnApplicationQuit()
+        {
+            _screens?.Stop();
+            EndTelemetrySession();
+        }
 
         // Publishing the Session*Event AFTER the field assignment (not
         // before) is the actual guarantee here - it's what makes it
@@ -177,6 +201,50 @@ namespace NAS.Core
             SelectedDealership = null; // chosen fresh every login
             EventBus.Publish(new SessionAuthenticatedEvent(CurrentUser, AccessToken));
             StartTelemetrySession();
+        }
+
+        private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
+
+        // Best-effort like all telemetry. Sent now if the session exists, otherwise
+        // held (up to a cap) and sent when StartTelemetrySession gets its id.
+        private void OnScreenVisitFinished(ScreenVisitTracker.Visit visit)
+        {
+            if (TelemetrySessionId > 0 && !string.IsNullOrEmpty(AccessToken))
+            {
+                SendScreenVisit(visit);
+                return;
+            }
+            if (_pendingVisits.Count < MaxPendingVisits)
+                _pendingVisits.Add(visit);
+        }
+
+        private void FlushPendingScreenVisits()
+        {
+            if (TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            foreach (var visit in _pendingVisits)
+                SendScreenVisit(visit);
+            _pendingVisits.Clear();
+        }
+
+        private void SendScreenVisit(ScreenVisitTracker.Visit visit)
+        {
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new ScreenVisitTelemetryRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                clientScreenVisitId = visit.ClientId,
+                screenName = visit.Screen,
+                startedAt = visit.StartedAt.ToString("o"),
+                endedAt = visit.EndedAt.ToString("o")
+            };
+            telemetryApi.LogScreenVisit(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] screen visit '{visit.Screen}' failed: {result.Error.Detail}");
+            });
         }
 
         private void OnDealershipSelected(DealershipSelectedEvent evt)
@@ -268,6 +336,8 @@ namespace NAS.Core
                     TelemetrySessionId = result.Value.id;
                     // The customer may have picked a dealership before this call returned.
                     ApplyDealershipToTelemetrySession();
+                    // Screens they already left (splash, login...) were waiting for this id.
+                    FlushPendingScreenVisits();
                 }
                 else
                     Debug.LogWarning($"[NAS Telemetry] Failed to start session: {result.Error.Detail}");

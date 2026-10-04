@@ -30,6 +30,10 @@ namespace NAS.Core.Networking
             _coroutineRunner.StartCoroutine(_client.PostJson<ActivityEventTelemetryRequest, TelemetryAckResponse>(
                 "api/telemetry/events", request, completed, accessToken));
 
+        public void LogScreenVisit(ScreenVisitTelemetryRequest request, string accessToken, Action<ApiResult<TelemetryAckResponse>> completed) =>
+            _coroutineRunner.StartCoroutine(_client.PostJson<ScreenVisitTelemetryRequest, TelemetryAckResponse>(
+                "api/telemetry/screen-visits", request, completed, accessToken));
+
         public void LogVehicleInteraction(VehicleInteractionTelemetryRequest request, string accessToken, Action<ApiResult<TelemetryAckResponse>> completed) =>
             _coroutineRunner.StartCoroutine(_client.PostJson<VehicleInteractionTelemetryRequest, TelemetryAckResponse>(
                 "api/telemetry/vehicle-interactions", request, completed, accessToken));

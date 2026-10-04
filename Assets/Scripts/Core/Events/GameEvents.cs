@@ -134,6 +134,19 @@ namespace NAS.Core.Events
         public SessionCarSelectedEvent(VehicleInfo vehicle) => Vehicle = vehicle;
     }
 
+    // ---- Screen timing -------------------------------------------------------------
+
+    /// <summary>
+    /// Raised by ParentPageController whenever a different screen becomes visible
+    /// (a ScreenNames value). GameManager times each screen from these and reports
+    /// the visits as telemetry - see ScreenVisitTracker.
+    /// </summary>
+    public readonly struct ScreenShownEvent
+    {
+        public readonly string ScreenName;
+        public ScreenShownEvent(string screenName) => ScreenName = screenName;
+    }
+
     // ---- Dealership selection -----------------------------------------------------
     // The customer chooses which dealership they're buying from (QR-code
     // scanning is a possible v2). Same raw/Session* split as car selection:

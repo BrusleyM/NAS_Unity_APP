@@ -128,6 +128,30 @@ Both send `vehicleModelId = 0` when there is no vehicle (JsonUtility can't send 
 the backend stores `<= 0` as null. Until a build with these ships the backend sees 0 for both,
 which the model treats as "none reported", not "none happened".
 
+## Screen timing (second counter beside the session timer)
+
+`ParentPageController` publishes `ScreenShownEvent(ScreenNames.X)` whenever a different
+screen becomes visible (splash, login, register, dealership_selection, car_selection,
+ar_viewport, estimator). `GameManager` feeds them to a `ScreenVisitTracker` (pure logic,
+`Assets/Scripts/Core/ScreenVisitTracker.cs`) which sends each finished stretch to
+`POST /api/telemetry/screen-visits` when the customer leaves the screen. App pause closes the
+current screen (so backgrounded time isn't counted as screen time) and resume reopens it; quit
+closes it for good. Visits under 0.5s are dropped. Splash/login/register finish before the
+telemetry session exists, so those visits are held (capped at 50) and sent once
+`StartTelemetrySession` gets its id.
+
+The session timer is unchanged - the two differ by idle/background time, and visits survive a
+force-quit up to the last screen change (the session end call doesn't). The backend also uses
+screen visits as one of the sources for "last activity" when a session never got an end time
+(`BuyerFeatureBuilder.SessionSeconds`).
+
+New screens: add a `ScreenNames` constant (snake_case, `^[a-z][a-z0-9_]{0,49}$`) and publish
+`ScreenShownEvent` where the screen appears. `AR Scene` screens are not separate - the whole AR
+scene is "ar_viewport" (its own AR/customise/calculator telemetry already has durations).
+
+The first Unity tests live in `Assets/Tests/EditMode` (`NAS.Tests.EditMode`; run via the Test
+Runner's EditMode tab) - add pure-logic tests there.
+
 ## Auth (`Assets/Scripts/Core/Auth/`)
 
 `AuthController` is **not** a mock — it's backed by a real API layer

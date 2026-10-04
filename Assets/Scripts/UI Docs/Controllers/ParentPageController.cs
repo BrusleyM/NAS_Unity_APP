@@ -151,6 +151,7 @@ namespace NAS.UI.Controllers
             // is still the one that clears this.
             EventBus.Publish(new LoadingStartedEvent("Entering AR..."));
             HideUi();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.ArViewport));
             if (!GameManager.Instance.IsArSceneLoaded)
             {
                 GameManager.Instance.IsArSceneLoaded = true;
@@ -212,6 +213,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _splashCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<SplashScreenController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Splash));
         }
 
         public void ShowLoginCard()
@@ -221,6 +223,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _loginCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<LoginCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Login));
         }
 
         public void ShowRegisterCard()
@@ -230,6 +233,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _registerCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<RegisterCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Register));
         }
 
         public void ShowDealershipSelectionScreen()
@@ -246,6 +250,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             uxml.CloneTree(_cardContainer);
             gameObject.AddComponent<DealershipSelectionController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.DealershipSelection));
         }
 
         public void ShowCarSelectionScreen()
@@ -256,6 +261,7 @@ namespace NAS.UI.Controllers
             _carSelectionCardUxml.CloneTree(_cardContainer);
             var carSelectionCtrl = gameObject.AddComponent<CarSelectionScreenController>();
             carSelectionCtrl.Initialize(_carCardUxml);
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.CarSelection));
         }
 
         public void ShowEstimatorCard()
@@ -265,6 +271,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _estimatorCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<EstimatorCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Estimator));
         }
 
         private void RemoveCardControllers()
