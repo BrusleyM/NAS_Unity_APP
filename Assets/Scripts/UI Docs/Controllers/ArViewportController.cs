@@ -29,6 +29,14 @@ namespace NAS.UI.Controllers
         private Label _carNameLabel;
 
         private Button _settingsButton;
+        // "Request test drive" - tells the dealer this customer wants one
+        // (an activity event + a lead the salesperson can see). Remembers
+        // which car it was sent for, so a second tap on the same car just
+        // shows the confirmed state instead of sending again.
+        private Button _testDriveButton;
+        private int _testDriveRequestedForCarId;
+        private bool _isRequestingTestDrive;
+        private IEstimatorApi _estimatorApi;
         private Button _sheetCloseButton;
         private VisualElement _sheetBackdrop;
         private VisualElement _customizeSheet;
@@ -118,6 +126,7 @@ namespace NAS.UI.Controllers
             _confirmButton = root.Q<Button>("confirm-button");
             _carNameLabel = root.Q<Label>("car-name-label");
             _settingsButton = root.Q<Button>("settings-button");
+            _testDriveButton = root.Q<Button>("test-drive-button");
             _sheetCloseButton = root.Q<Button>("sheet-close-button");
             _sheetBackdrop = root.Q<VisualElement>("sheet-backdrop");
             _customizeSheet = root.Q<VisualElement>("customize-sheet");
@@ -151,6 +160,8 @@ namespace NAS.UI.Controllers
                 _confirmButton.clicked += OnConfirmClicked;
             if (_settingsButton != null)
                 _settingsButton.clicked += OnSettingsClicked;
+            if (_testDriveButton != null)
+                _testDriveButton.clicked += OnTestDriveClicked;
             if (_resetPositionButton != null)
                 _resetPositionButton.clicked += OnResetPositionClicked;
             if (_sheetCloseButton != null)
@@ -215,6 +226,7 @@ namespace NAS.UI.Controllers
             SetElementVisible(_rotationSliderRow, false);
             SetElementVisible(_verticalOffsetSliderColumn, false);
             SetElementVisible(_settingsButtonRow, false);
+            RefreshTestDriveButton();
 
             _colourChangeCount = 0;
             _clientVehicleInteractionId = Guid.NewGuid().ToString();
@@ -249,6 +261,58 @@ namespace NAS.UI.Controllers
             SetElementVisible(_rotationSliderRow, true);
             SetElementVisible(_verticalOffsetSliderColumn, true);
             SetElementVisible(_settingsButtonRow, true);
+        }
+
+        private void RefreshTestDriveButton()
+        {
+            if (_testDriveButton == null) return;
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var done = selectedCar != null && selectedCar.id > 0 && selectedCar.id == _testDriveRequestedForCarId;
+            _testDriveButton.text = done ? "Test drive requested \u2713" : "Request test drive";
+            _testDriveButton.EnableInClassList("test-drive-button--done", done);
+            _testDriveButton.SetEnabled(!done && !_isRequestingTestDrive);
+        }
+
+        // Best-effort like the rest of the AR scene's network calls: a failure
+        // just leaves the button tappable so the customer can try again.
+        private void OnTestDriveClicked()
+        {
+            if (_isRequestingTestDrive) return;
+
+            var gameManager = GameManager.Instance;
+            var selectedCar = gameManager != null ? gameManager.SelectedCar : null;
+            var accessToken = gameManager != null ? gameManager.AccessToken : null;
+            if (selectedCar == null || selectedCar.id <= 0 || string.IsNullOrEmpty(accessToken)
+                || gameManager.TelemetrySessionId <= 0)
+            {
+                Debug.LogWarning($"{LogPrefix} Can't request a test drive yet - not signed in, no car selected, or no session started.");
+                return;
+            }
+
+            var resolved = EnvironmentResolver.Resolve(LogPrefix);
+            if (resolved.Settings == null) return;
+
+            _isRequestingTestDrive = true;
+            RefreshTestDriveButton();
+
+            _estimatorApi = new EstimatorApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var carId = selectedCar.id;
+            var request = new RequestTestDriveRequest
+            {
+                vehicleModelId = carId,
+                customerSessionId = gameManager.TelemetrySessionId,
+                clientEventId = Guid.NewGuid().ToString(),
+                savedConfigurationId = gameManager.SelectedConfigurationId
+            };
+            _estimatorApi.RequestTestDrive(request, accessToken, result =>
+            {
+                _isRequestingTestDrive = false;
+                if (result.Success)
+                    _testDriveRequestedForCarId = carId;
+                else
+                    Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
+                RefreshTestDriveButton();
+            });
         }
 
         // Resets both the underlying car (via CarManipulationController,
@@ -291,6 +355,8 @@ namespace NAS.UI.Controllers
                 _confirmButton.clicked -= OnConfirmClicked;
             if (_settingsButton != null)
                 _settingsButton.clicked -= OnSettingsClicked;
+            if (_testDriveButton != null)
+                _testDriveButton.clicked -= OnTestDriveClicked;
             if (_resetPositionButton != null)
                 _resetPositionButton.clicked -= OnResetPositionClicked;
             if (_sheetCloseButton != null)

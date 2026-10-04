@@ -335,6 +335,18 @@ Colors match the Figma spec (`#C0C0C0` neutral, `#00D4FF` active/accent) but
 `box-shadow` glow wasn't reproduced (UI Toolkit's USS support for it wasn't used
 here — check current Unity version support before assuming it's unavailable).
 
+A **"Request test drive"** pill sits next to the Settings button once a car is
+placed (`ArViewportController.OnTestDriveClicked`). It calls
+`POST /api/estimator/test-drive-requests`, which records a `test_drive_requested`
+activity event and gives the customer's lead `TestDriveRequestedAt` (creating a
+lead from their account if they haven't submitted the estimator yet — the
+estimator's submit then completes that same lead). A lead with a test drive
+requested AND the form submitted is classified Hot with confidence floored at
+0.90 by the backend (a hand-set rule in `MlDataService`, to be replaced once the
+model is retrained on real outcomes), and NAS-Admin explains why. This is the
+only real source of the `test_drive_requested` signal the ML training data
+counts.
+
 **Not yet built:** the camera-feed gradient scrim, and the real contents of the
 "Customize" sheet (the Wheel/Paint/Trims/Dashboard 4-item grid, Paint's 5 color
 swatches, the other three categories' text-choice rows) — the sheet currently

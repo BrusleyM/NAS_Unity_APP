@@ -79,6 +79,13 @@ namespace NAS.Core
         // this int, not a client-generated string id, to satisfy
         // TelemetryService.ValidateCustomerSessionAsync on the backend.
         public int TelemetrySessionId { get; set; } = 0;
+        // Guards EndTelemetrySession() against firing more than once - the
+        // app can background/foreground (OnApplicationPause toggling false
+        // then true) many times in one real usage session, and quit can
+        // follow a pause that already sent the end signal. Only the first
+        // call should count as "the session ended" (see EndTelemetrySession's
+        // own comment for why re-opening a session on resume isn't handled).
+        private bool _telemetrySessionEnded = false;
         // Set by SelectedCarModelLoader after each load attempt - true only
         // if the customer's actual selected car model loaded (not a
         // placeholder-prefab fallback from a download/parse/instantiate
@@ -131,6 +138,22 @@ namespace NAS.Core
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
 
+        // OnApplicationPause(true) is the reliable "session ended" signal on
+        // mobile - most real sessions end with the user backgrounding the
+        // app (home button/app switcher), not force-quitting it, and a
+        // backgrounded app is NOT reliably given a chance to run further
+        // code once it's actually quit. OnApplicationQuit is kept too, as a
+        // fallback for platforms/cases where pause never fires before quit
+        // (e.g. stopping Play mode in the Editor) - _telemetrySessionEnded
+        // stops both from double-sending if pause already fired.
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+                EndTelemetrySession();
+        }
+
+        private void OnApplicationQuit() => EndTelemetrySession();
+
         // Publishing the Session*Event AFTER the field assignment (not
         // before) is the actual guarantee here - it's what makes it
         // structurally impossible for a subscriber to observe this event
@@ -179,6 +202,37 @@ namespace NAS.Core
                     TelemetrySessionId = result.Value.id;
                 else
                     Debug.LogWarning($"[NAS Telemetry] Failed to start session: {result.Error.Detail}");
+            });
+        }
+
+        // Closes out the session server-side so CustomerSession.EndedAt (and
+        // its computed DurationSeconds, which buyer-classification's
+        // SessionDuration feature reads) actually gets set - previously
+        // nothing ever called this and every session's duration was null
+        // forever. Only ends the FIRST time the app backgrounds or quits in
+        // a given login - a later resume keeps using the same
+        // TelemetrySessionId rather than opening a new session, so this
+        // deliberately doesn't try to model "session resumed after
+        // backgrounding" as a session boundary; that's a bigger design
+        // question than fixing the always-null duration.
+        private void EndTelemetrySession()
+        {
+            if (_telemetrySessionEnded || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            _telemetrySessionEnded = true;
+
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new EndCustomerSessionRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                endedAt = DateTime.UtcNow.ToString("o")
+            };
+            telemetryApi.EndSession(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] Failed to end session: {result.Error.Detail}");
             });
         }
 

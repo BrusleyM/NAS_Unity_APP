@@ -30,13 +30,14 @@
 
         <ui:VisualElement name="vertical-offset-slider-column" class="vertical-offset-slider-column" style="display: none;">
             <ui:Button name="reset-position-button" class="reset-position-button" text="&#8635;" />
-            <ui:Slider name="vertical-offset-slider" low-value="-0.3" high-value="0.3" value="0" direction="Vertical" class="vertical-offset-slider" />
+            <ui:Slider name="vertical-offset-slider" low-value="-0.5" high-value="0.5" value="0" direction="Vertical" class="vertical-offset-slider" />
         </ui:VisualElement>
 
         <ui:VisualElement name="settings-button-row" class="settings-button-row" picking-mode="Ignore" style="display: none;">
             <ui:Button name="settings-button" class="settings-button">
                 <ui:VisualElement name="settings-icon" class="settings-icon" />
             </ui:Button>
+            <ui:Button name="test-drive-button" class="test-drive-button" text="Request test drive" />
         </ui:VisualElement>
 
         <ui:VisualElement name="sheet-backdrop" class="sheet-backdrop" style="display: none;" />

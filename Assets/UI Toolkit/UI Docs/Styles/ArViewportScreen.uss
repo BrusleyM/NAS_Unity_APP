@@ -152,8 +152,33 @@
     left: 0;
     right: 0;
     bottom: 24px;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
+}
+
+.test-drive-button {
+    height: 56px;
+    margin: 0 0 0 12px;
+    padding: 0 22px;
+    border-radius: 28px;
+    background-color: rgba(0, 212, 255, 0.18);
+    border-width: 1.5px;
+    border-color: rgba(0, 212, 255, 0.7);
+    color: rgb(0, 212, 255);
+    font-size: 16px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.test-drive-button:hover {
+    background-color: rgba(0, 212, 255, 0.28);
+}
+
+.test-drive-button--done {
+    background-color: rgba(18, 18, 18, 0.85);
+    border-color: rgba(192, 192, 192, 0.45);
+    color: rgb(192, 192, 192);
 }
 
 .settings-button {
