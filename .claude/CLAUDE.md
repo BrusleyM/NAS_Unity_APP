@@ -203,12 +203,12 @@ localhost. `GameManager.CurrentEnvironment` returns the effective value, and
 `EnvironmentResolver` loads Staging/Production `ApiSettings` from
 `Resources/Config/ApiSettings.<Env>.asset` (no Inspector wiring to forget);
 a missing asset is a loud error, never a silent fall back to Local.
-`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Production is
-`https://nas-api.neoxr.co.za` (SmarterASP.NET). **Staging
-(`https://nas-staging-api.neoxr.co.za`) does not exist yet** — it needs its own
-site and database on the host, which the current trial plan (one site, one
-Postgres database) can't hold. The only environment currently reachable from a
-phone without the nginx setup is Production.
+`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Only Dev and Staging
+really exist: Staging is the SmarterASP.NET site at `https://nas-api.neoxr.co.za`
+(one site, one Postgres database on the trial plan). `Production` is defined but
+not created, so its asset currently points at the same host; when production is
+built, give it its own hostname and change that one asset. The full standard is
+`NAS_Backend/docs/ENVIRONMENTS.md`.
 
 **Recurring gotcha: adding a cross-folder script reference can compile
 "clean" right up until it doesn't.** This project uses one `.asmdef` per
