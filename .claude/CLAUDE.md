@@ -191,6 +191,25 @@ the simplest default for anyone without the nginx/mkcert setup running;
 makes auth fail silently. See the README's "Optional: HTTPS for testing on a
 physical device" section for the full explanation.
 
+**Dev / Staging / Production.** `AppEnvironment` has five values:
+`Local`, `ApiDomain`, `ApiIp` (all "Dev": my machine, or my machine through
+the nginx proxy) plus `Staging` and `Production` (hosted backends with real
+certificates). Which one a build **actually uses** is
+`EnvironmentPolicy.Effective(...)` (pure logic, EditMode-tested): Editor and
+Development builds honour `GameManager._environment`; a **release build
+ignores it** and is `Production` — or `Staging` when built with the scripting
+define `NAS_STAGING_BUILD` — so a release can never ship pointing at
+localhost. `GameManager.CurrentEnvironment` returns the effective value, and
+`EnvironmentResolver` loads Staging/Production `ApiSettings` from
+`Resources/Config/ApiSettings.<Env>.asset` (no Inspector wiring to forget);
+a missing asset is a loud error, never a silent fall back to Local.
+`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Production is
+`https://nas-api.neoxr.co.za` (SmarterASP.NET). **Staging
+(`https://nas-staging-api.neoxr.co.za`) does not exist yet** — it needs its own
+site and database on the host, which the current trial plan (one site, one
+Postgres database) can't hold. The only environment currently reachable from a
+phone without the nginx setup is Production.
+
 **Recurring gotcha: adding a cross-folder script reference can compile
 "clean" right up until it doesn't.** This project uses one `.asmdef` per
 `Core/*` subfolder (`NAS.Core`, `NAS.Core.Auth`, `NAS.Core.Networking`,
