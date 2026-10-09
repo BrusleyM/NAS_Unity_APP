@@ -89,3 +89,8 @@ crashlytics-build.properties
 /Key/
 
 # End of https://www.toptal.com/developers/gitignore/api/unity
+
+# The CI test project (outside Assets, so Unity never sees it) is ours - keep it.
+!/CI/PureLogicTests/*.csproj
+/CI/PureLogicTests/bin/
+/CI/PureLogicTests/obj/

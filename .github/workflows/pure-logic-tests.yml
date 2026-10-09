@@ -1,0 +1,29 @@
+name: Unity pure-logic tests
+
+# Unity builds and the full Test Runner need a Unity licence and (for iOS) a Mac with signing - those
+# stay manual. What can be checked on every push without either: the engine-free logic (screen-visit
+# timing, environment selection) and its tests, compiled and run with plain `dotnet test`.
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unity-logic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pure-logic:
+    name: Engine-free logic and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test CI/PureLogicTests --nologo
