@@ -23,15 +23,21 @@
             <ui:Label name="scale-hint-label" text="Pinch to scale [1:1]" class="gesture-hint-label" />
         </ui:VisualElement>
 
-        <ui:VisualElement name="rotation-slider-row" class="rotation-slider-row">
+        <ui:VisualElement name="rotation-slider-row" class="rotation-slider-row" style="display: none;">
             <ui:Label text="Rotate" class="rotation-slider-label" />
             <ui:Slider name="rotation-slider" low-value="-180" high-value="180" value="0" class="rotation-slider" />
         </ui:VisualElement>
 
-        <ui:VisualElement name="settings-button-row" class="settings-button-row" picking-mode="Ignore">
+        <ui:VisualElement name="vertical-offset-slider-column" class="vertical-offset-slider-column" style="display: none;">
+            <ui:Button name="reset-position-button" class="reset-position-button" text="&#8635;" />
+            <ui:Slider name="vertical-offset-slider" low-value="-0.5" high-value="0.5" value="0" direction="Vertical" class="vertical-offset-slider" />
+        </ui:VisualElement>
+
+        <ui:VisualElement name="settings-button-row" class="settings-button-row" picking-mode="Ignore" style="display: none;">
             <ui:Button name="settings-button" class="settings-button">
                 <ui:VisualElement name="settings-icon" class="settings-icon" />
             </ui:Button>
+            <ui:Button name="test-drive-button" class="test-drive-button" text="Request test drive" />
         </ui:VisualElement>
 
         <ui:VisualElement name="sheet-backdrop" class="sheet-backdrop" style="display: none;" />

@@ -134,6 +134,49 @@ namespace NAS.Core.Events
         public SessionCarSelectedEvent(VehicleInfo vehicle) => Vehicle = vehicle;
     }
 
+    // ---- Screen timing -------------------------------------------------------------
+
+    /// <summary>
+    /// Raised by ParentPageController whenever a different screen becomes visible
+    /// (a ScreenNames value). GameManager times each screen from these and reports
+    /// the visits as telemetry - see ScreenVisitTracker.
+    /// </summary>
+    public readonly struct ScreenShownEvent
+    {
+        public readonly string ScreenName;
+        public ScreenShownEvent(string screenName) => ScreenName = screenName;
+    }
+
+    // ---- Dealership selection -----------------------------------------------------
+    // The customer chooses which dealership they're buying from (QR-code
+    // scanning is a possible v2). Same raw/Session* split as car selection:
+    // GameManager is the only direct subscriber to the raw event.
+
+    /// <summary>
+    /// Raised by DealershipSelectionController when the user picks a dealership.
+    /// The raw fact - GameManager is the only thing that should subscribe to it
+    /// directly; everything else should use SessionDealershipSelectedEvent.
+    /// </summary>
+    public readonly struct DealershipSelectedEvent
+    {
+        public readonly DealershipInfo Dealership;
+        public DealershipSelectedEvent(DealershipInfo dealership) => Dealership = dealership;
+    }
+
+    /// <summary>
+    /// Raised by GameManager right after it applies a DealershipSelectedEvent to
+    /// its own SelectedDealership (and cleared any car chosen from another
+    /// dealership). Subscribe to THIS if you need to read GameManager state.
+    /// </summary>
+    public readonly struct SessionDealershipSelectedEvent
+    {
+        public readonly DealershipInfo Dealership;
+        public SessionDealershipSelectedEvent(DealershipInfo dealership) => Dealership = dealership;
+    }
+
+    /// <summary>Raised by the car selection screen's "Change dealership" control - ParentPageController reacts by showing the dealership list again.</summary>
+    public readonly struct ChangeDealershipRequestedEvent { }
+
     // ---- AR scene lifecycle -------------------------------------------------------
     // AR Scene is loaded additively exactly once (see GameManager.IsArSceneLoaded)
     // and never reloaded after that - these two drive showing/hiding it on
@@ -149,6 +192,19 @@ namespace NAS.Core.Events
 
     /// <summary>Raised by AR flow controllers when the user backs out to the estimator card.</summary>
     public readonly struct ReturnToEstimatorRequestedEvent { }
+
+    /// <summary>
+    /// Raised by SelectedCarModelLoader when the selected car's 3D model could not
+    /// be loaded and the placeholder is used instead. GameManager records it as an
+    /// ar_load_failed activity event - a customer who gave up because the car
+    /// would not load looks very different from one who lost interest.
+    /// </summary>
+    public readonly struct ArModelLoadFailedEvent
+    {
+        // "no_model_key" | "download" | "parse" | "instantiate"
+        public readonly string Reason;
+        public ArModelLoadFailedEvent(string reason) => Reason = reason;
+    }
 
     /// <summary>Raised by ObjectPlacerController right after it instantiates the placed car in the AR scene.</summary>
     public readonly struct CarPlacedEvent
@@ -183,6 +239,22 @@ namespace NAS.Core.Events
 
     /// <summary>Raised by ArViewportController when the user releases the rotation slider, so CarManipulationController knows one rotation "gesture" ended (for threshold-based interaction counting, same idea as lifting a finger off a touch drag) and can resume raw touch reading.</summary>
     public readonly struct RotationSliderReleasedEvent { }
+
+    /// <summary>Raised by ArViewportController when the user first touches down on the vertical-offset slider - same reasoning as RotationSliderGrabbedEvent, for the same "raw touch reading fights the slider" problem.</summary>
+    public readonly struct VerticalOffsetSliderGrabbedEvent { }
+
+    /// <summary>Raised by ArViewportController's vertical-offset slider on every value change while the user is dragging it - applied live to the placed car's local Y by CarManipulationController, correcting for anchor/tracking height error without touching X/Z drag or rotation.</summary>
+    public readonly struct VerticalOffsetSliderChangedEvent
+    {
+        public readonly float OffsetMeters;
+        public VerticalOffsetSliderChangedEvent(float offsetMeters) => OffsetMeters = offsetMeters;
+    }
+
+    /// <summary>Raised by ArViewportController when the user releases the vertical-offset slider - same reasoning as RotationSliderReleasedEvent.</summary>
+    public readonly struct VerticalOffsetSliderReleasedEvent { }
+
+    /// <summary>Raised by ArViewportController's reset-position button - CarManipulationController clears any drag/vertical-offset correction on the placed car, snapping its local position back to exactly where its anchor sits. Rotation and scale are untouched - each already has its own dedicated control.</summary>
+    public readonly struct CarPositionResetRequestedEvent { }
 
     /// <summary>Raised by CarManipulationController whenever repositionCount/scaleCount/rotationCount change, so ObjectPlacerController can fold them into the ArSession telemetry it owns sending.</summary>
     public readonly struct GestureCountsUpdatedEvent

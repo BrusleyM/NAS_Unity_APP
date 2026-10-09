@@ -29,6 +29,14 @@ namespace NAS.UI.Controllers
         private Label _carNameLabel;
 
         private Button _settingsButton;
+        // "Request test drive" - tells the dealer this customer wants one
+        // (an activity event + a lead the salesperson can see). Remembers
+        // which car it was sent for, so a second tap on the same car just
+        // shows the confirmed state instead of sending again.
+        private Button _testDriveButton;
+        private int _testDriveRequestedForCarId;
+        private bool _isRequestingTestDrive;
+        private IEstimatorApi _estimatorApi;
         private Button _sheetCloseButton;
         private VisualElement _sheetBackdrop;
         private VisualElement _customizeSheet;
@@ -40,6 +48,21 @@ namespace NAS.UI.Controllers
         // placed car directly.
         private Slider _rotationSlider;
         private Label _scaleHintLabel;
+        private VisualElement _rotationSliderRow;
+
+        // Vertical-offset slider - a manual correction for when the anchor's
+        // tracked height is visibly off (see CLAUDE.md's AR viewport section
+        // on anchor stability). Same ownership split as the rotation slider:
+        // this controller owns the control, CarManipulationController
+        // applies the values via VerticalOffsetSliderChangedEvent.
+        private Slider _verticalOffsetSlider;
+        private VisualElement _verticalOffsetSliderColumn;
+        private Button _resetPositionButton;
+
+        // Hidden until a car actually exists in the scene - showing a
+        // rotation/height slider and a Customize button with nothing yet to
+        // manipulate is confusing. Shown once CarPlacedEvent fires.
+        private VisualElement _settingsButtonRow;
 
         // Wheel/Trims/Dashboard have no data model to back real customization
         // yet (see .claude/CLAUDE.md's "Vehicle catalog" section) - tapping
@@ -103,13 +126,19 @@ namespace NAS.UI.Controllers
             _confirmButton = root.Q<Button>("confirm-button");
             _carNameLabel = root.Q<Label>("car-name-label");
             _settingsButton = root.Q<Button>("settings-button");
+            _testDriveButton = root.Q<Button>("test-drive-button");
             _sheetCloseButton = root.Q<Button>("sheet-close-button");
             _sheetBackdrop = root.Q<VisualElement>("sheet-backdrop");
             _customizeSheet = root.Q<VisualElement>("customize-sheet");
             _swatchRow = root.Q<VisualElement>("swatch-row");
             _categoryPlaceholderText = root.Q<Label>("category-placeholder-text");
             _rotationSlider = root.Q<Slider>("rotation-slider");
+            _rotationSliderRow = root.Q<VisualElement>("rotation-slider-row");
             _scaleHintLabel = root.Q<Label>("scale-hint-label");
+            _verticalOffsetSlider = root.Q<Slider>("vertical-offset-slider");
+            _verticalOffsetSliderColumn = root.Q<VisualElement>("vertical-offset-slider-column");
+            _resetPositionButton = root.Q<Button>("reset-position-button");
+            _settingsButtonRow = root.Q<VisualElement>("settings-button-row");
 
             if (_rotationSlider != null)
             {
@@ -118,12 +147,23 @@ namespace NAS.UI.Controllers
                 _rotationSlider.RegisterCallback<PointerUpEvent>(OnRotationSliderReleased);
             }
 
+            if (_verticalOffsetSlider != null)
+            {
+                _verticalOffsetSlider.RegisterCallback<PointerDownEvent>(OnVerticalOffsetSliderGrabbed);
+                _verticalOffsetSlider.RegisterValueChangedCallback(OnVerticalOffsetSliderValueChanged);
+                _verticalOffsetSlider.RegisterCallback<PointerUpEvent>(OnVerticalOffsetSliderReleased);
+            }
+
             if (_backButton != null)
                 _backButton.clicked += OnBackClicked;
             if (_confirmButton != null)
                 _confirmButton.clicked += OnConfirmClicked;
             if (_settingsButton != null)
                 _settingsButton.clicked += OnSettingsClicked;
+            if (_testDriveButton != null)
+                _testDriveButton.clicked += OnTestDriveClicked;
+            if (_resetPositionButton != null)
+                _resetPositionButton.clicked += OnResetPositionClicked;
             if (_sheetCloseButton != null)
                 _sheetCloseButton.clicked += OnCloseSheetClicked;
             if (_sheetBackdrop != null)
@@ -140,6 +180,7 @@ namespace NAS.UI.Controllers
 
             EventBus.Subscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Subscribe<CarScaleChangedEvent>(OnCarScaleChanged);
+            EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
             ShowForCurrentCar();
         }
 
@@ -175,8 +216,17 @@ namespace NAS.UI.Controllers
             // relying on that side effect to reset the label/slider in sync
             // is more fragile than just doing it directly here.
             _rotationSlider?.SetValueWithoutNotify(0f);
+            _verticalOffsetSlider?.SetValueWithoutNotify(0f);
             if (_scaleHintLabel != null)
                 _scaleHintLabel.text = "Pinch to scale [1:1]";
+
+            // Hidden again on every fresh AR entry until CarPlacedEvent fires
+            // for whatever gets placed this visit - showing controls for a
+            // car that isn't in the scene yet is confusing.
+            SetElementVisible(_rotationSliderRow, false);
+            SetElementVisible(_verticalOffsetSliderColumn, false);
+            SetElementVisible(_settingsButtonRow, false);
+            RefreshTestDriveButton();
 
             _colourChangeCount = 0;
             _clientVehicleInteractionId = Guid.NewGuid().ToString();
@@ -193,6 +243,87 @@ namespace NAS.UI.Controllers
 
         private void OnRotationSliderReleased(PointerUpEvent evt) =>
             EventBus.Publish(new RotationSliderReleasedEvent());
+
+        private void OnVerticalOffsetSliderGrabbed(PointerDownEvent evt) =>
+            EventBus.Publish(new VerticalOffsetSliderGrabbedEvent());
+
+        private void OnVerticalOffsetSliderValueChanged(ChangeEvent<float> evt) =>
+            EventBus.Publish(new VerticalOffsetSliderChangedEvent(evt.newValue));
+
+        private void OnVerticalOffsetSliderReleased(PointerUpEvent evt) =>
+            EventBus.Publish(new VerticalOffsetSliderReleasedEvent());
+
+        // Only a car actually being in the scene makes these controls
+        // meaningful - see ShowForCurrentCar for where they're hidden again
+        // on the next AR entry.
+        private void OnCarPlaced(CarPlacedEvent evt)
+        {
+            SetElementVisible(_rotationSliderRow, true);
+            SetElementVisible(_verticalOffsetSliderColumn, true);
+            SetElementVisible(_settingsButtonRow, true);
+        }
+
+        private void RefreshTestDriveButton()
+        {
+            if (_testDriveButton == null) return;
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var done = selectedCar != null && selectedCar.id > 0 && selectedCar.id == _testDriveRequestedForCarId;
+            _testDriveButton.text = done ? "Test drive requested \u2713" : "Request test drive";
+            _testDriveButton.EnableInClassList("test-drive-button--done", done);
+            _testDriveButton.SetEnabled(!done && !_isRequestingTestDrive);
+        }
+
+        // Best-effort like the rest of the AR scene's network calls: a failure
+        // just leaves the button tappable so the customer can try again.
+        private void OnTestDriveClicked()
+        {
+            if (_isRequestingTestDrive) return;
+
+            var gameManager = GameManager.Instance;
+            var selectedCar = gameManager != null ? gameManager.SelectedCar : null;
+            var accessToken = gameManager != null ? gameManager.AccessToken : null;
+            if (selectedCar == null || selectedCar.id <= 0 || string.IsNullOrEmpty(accessToken)
+                || gameManager.TelemetrySessionId <= 0)
+            {
+                Debug.LogWarning($"{LogPrefix} Can't request a test drive yet - not signed in, no car selected, or no session started.");
+                return;
+            }
+
+            var resolved = EnvironmentResolver.Resolve(LogPrefix);
+            if (resolved.Settings == null) return;
+
+            _isRequestingTestDrive = true;
+            RefreshTestDriveButton();
+
+            _estimatorApi = new EstimatorApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var carId = selectedCar.id;
+            var request = new RequestTestDriveRequest
+            {
+                vehicleModelId = carId,
+                customerSessionId = gameManager.TelemetrySessionId,
+                clientEventId = Guid.NewGuid().ToString(),
+                savedConfigurationId = gameManager.SelectedConfigurationId
+            };
+            _estimatorApi.RequestTestDrive(request, accessToken, result =>
+            {
+                _isRequestingTestDrive = false;
+                if (result.Success)
+                    _testDriveRequestedForCarId = carId;
+                else
+                    Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
+                RefreshTestDriveButton();
+            });
+        }
+
+        // Resets both the underlying car (via CarManipulationController,
+        // which owns the actual transform) and this controller's own slider
+        // displays, so the vertical slider doesn't sit at a stale value that
+        // no longer matches where the car actually is.
+        private void OnResetPositionClicked()
+        {
+            EventBus.Publish(new CarPositionResetRequestedEvent());
+            _verticalOffsetSlider?.SetValueWithoutNotify(0f);
+        }
 
         private void OnCarScaleChanged(CarScaleChangedEvent evt)
         {
@@ -216,6 +347,7 @@ namespace NAS.UI.Controllers
         {
             EventBus.Unsubscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Unsubscribe<CarScaleChangedEvent>(OnCarScaleChanged);
+            EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
 
             if (_backButton != null)
                 _backButton.clicked -= OnBackClicked;
@@ -223,6 +355,10 @@ namespace NAS.UI.Controllers
                 _confirmButton.clicked -= OnConfirmClicked;
             if (_settingsButton != null)
                 _settingsButton.clicked -= OnSettingsClicked;
+            if (_testDriveButton != null)
+                _testDriveButton.clicked -= OnTestDriveClicked;
+            if (_resetPositionButton != null)
+                _resetPositionButton.clicked -= OnResetPositionClicked;
             if (_sheetCloseButton != null)
                 _sheetCloseButton.clicked -= OnCloseSheetClicked;
             if (_sheetBackdrop != null)
@@ -232,6 +368,12 @@ namespace NAS.UI.Controllers
                 _rotationSlider.UnregisterCallback<PointerDownEvent>(OnRotationSliderGrabbed);
                 _rotationSlider.UnregisterValueChangedCallback(OnRotationSliderValueChanged);
                 _rotationSlider.UnregisterCallback<PointerUpEvent>(OnRotationSliderReleased);
+            }
+            if (_verticalOffsetSlider != null)
+            {
+                _verticalOffsetSlider.UnregisterCallback<PointerDownEvent>(OnVerticalOffsetSliderGrabbed);
+                _verticalOffsetSlider.UnregisterValueChangedCallback(OnVerticalOffsetSliderValueChanged);
+                _verticalOffsetSlider.UnregisterCallback<PointerUpEvent>(OnVerticalOffsetSliderReleased);
             }
         }
 

@@ -19,5 +19,11 @@ namespace NAS.Core.Networking
             _coroutineRunner.StartCoroutine(_client.PostJson<SubmitEstimateRequest, SubmitEstimateResponse>(
                 "api/estimator/submissions", request, completed, accessToken));
         }
+
+        public void RequestTestDrive(RequestTestDriveRequest request, string accessToken, Action<ApiResult<RequestTestDriveResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson<RequestTestDriveRequest, RequestTestDriveResponse>(
+                "api/estimator/test-drive-requests", request, completed, accessToken));
+        }
     }
 }

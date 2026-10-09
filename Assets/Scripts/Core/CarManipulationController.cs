@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using NAS.Core.Events;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.UIElements;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 namespace NAS.Core
@@ -45,11 +47,31 @@ namespace NAS.Core
         [SerializeField] private float _minScaleMultiplier = 1f;
         [SerializeField] private float _maxScaleMultiplier = 2.5f;
 
+        // Used only to hit-test whether a given touch started on a UI
+        // element (any button, slider, or the Customize sheet) - see
+        // IsScreenPositionOverUi. Optional: if unassigned, that check is
+        // simply skipped rather than throwing, same graceful-degradation as
+        // this project's other optional dependencies.
+        [SerializeField] private UIDocument _uiDocument;
+
         private GameObject _placedInstance;
         private Vector3 _originalLocalScale;
         private float _scaleMultiplier = 1f;
         private bool _isCustomizeSheetOpen;
         private bool _isRotationSliderActive;
+        private bool _isVerticalSliderActive;
+
+        // Fingers whose FIRST touch-down landed on a UI element - tracked by
+        // finger index rather than re-checking every frame, so a drag that
+        // starts on a button and then (however unlikely) drifts off its
+        // bounds while still held down stays suppressed for its whole
+        // lifetime, instead of flip-flopping frame to frame. This is the
+        // general case of the same problem RotationSliderGrabbedEvent and
+        // CustomizeSheetToggledEvent each solve for their own specific
+        // control - this catches every OTHER button (Settings, Reset,
+        // Back, Confirm, category buttons, swatches) without needing a
+        // dedicated event wired up per button, present or future.
+        private readonly HashSet<int> _fingersStartedOverUi = new HashSet<int>();
 
         private int _repositionCount;
         private int _scaleCount;
@@ -59,7 +81,11 @@ namespace NAS.Core
         // changes (drag) or the segment restarts (pinch/rotation) - "segment"
         // means one continuous interaction, not the whole AR visit.
         private bool _hasLastDragHit;
-        private Vector3 _lastDragHit;
+        private Vector3 _lastLocalDragHit;
+        // The anchor's pose at the moment THIS drag gesture started, frozen
+        // for the gesture's whole duration - see HandleReposition for why.
+        private Vector3 _gestureAnchorPosition;
+        private Quaternion _gestureAnchorRotation;
         private float _repositionAccumThisGesture;
         private bool _repositionCountedThisGesture;
 
@@ -80,6 +106,10 @@ namespace NAS.Core
             EventBus.Subscribe<RotationSliderGrabbedEvent>(OnRotationSliderGrabbed);
             EventBus.Subscribe<RotationSliderChangedEvent>(OnRotationSliderChanged);
             EventBus.Subscribe<RotationSliderReleasedEvent>(OnRotationSliderReleased);
+            EventBus.Subscribe<VerticalOffsetSliderGrabbedEvent>(OnVerticalOffsetSliderGrabbed);
+            EventBus.Subscribe<VerticalOffsetSliderChangedEvent>(OnVerticalOffsetSliderChanged);
+            EventBus.Subscribe<VerticalOffsetSliderReleasedEvent>(OnVerticalOffsetSliderReleased);
+            EventBus.Subscribe<CarPositionResetRequestedEvent>(OnCarPositionReset);
 
             // Ref-counted internally - safe even if something else in the
             // project also enables it. This is the only place in the
@@ -101,6 +131,11 @@ namespace NAS.Core
             EventBus.Unsubscribe<RotationSliderGrabbedEvent>(OnRotationSliderGrabbed);
             EventBus.Unsubscribe<RotationSliderChangedEvent>(OnRotationSliderChanged);
             EventBus.Unsubscribe<RotationSliderReleasedEvent>(OnRotationSliderReleased);
+
+            EventBus.Unsubscribe<VerticalOffsetSliderGrabbedEvent>(OnVerticalOffsetSliderGrabbed);
+            EventBus.Unsubscribe<VerticalOffsetSliderChangedEvent>(OnVerticalOffsetSliderChanged);
+            EventBus.Unsubscribe<VerticalOffsetSliderReleasedEvent>(OnVerticalOffsetSliderReleased);
+            EventBus.Unsubscribe<CarPositionResetRequestedEvent>(OnCarPositionReset);
 
             Touch.onFingerDown -= OnFingerDown;
             Touch.onFingerMove -= OnFingerMove;
@@ -217,11 +252,53 @@ namespace NAS.Core
             ResetRotationGestureState();
         }
 
-        // Fires once per finger touching down - no gesture work needed here,
-        // HandleReposition/HandlePinch below establish their own baseline on
-        // the first onFingerMove after a touch-count change.
+        // Same "raw touch reading fights the slider" reasoning as the
+        // rotation slider's grab handler above.
+        private void OnVerticalOffsetSliderGrabbed(VerticalOffsetSliderGrabbedEvent evt)
+        {
+            _isVerticalSliderActive = true;
+            ResetDragState();
+            ResetPinchState();
+        }
+
+        private void OnVerticalOffsetSliderChanged(VerticalOffsetSliderChangedEvent evt)
+        {
+            if (_placedInstance == null)
+                return;
+
+            // Absolute, not cumulative - same convention as the rotation
+            // slider: the slider's own position is the single source of
+            // truth for the car's vertical offset from its anchor. Only the
+            // Y component is touched; whatever X/Z offset dragging has
+            // produced is left exactly as it is.
+            Vector3 local = _placedInstance.transform.localPosition;
+            _placedInstance.transform.localPosition = new Vector3(local.x, evt.OffsetMeters, local.z);
+        }
+
+        private void OnVerticalOffsetSliderReleased(VerticalOffsetSliderReleasedEvent evt)
+        {
+            _isVerticalSliderActive = false;
+        }
+
+        // Clears drag (X/Z) and vertical-slider (Y) offsets back to exactly
+        // where the anchor itself sits. Deliberately leaves rotation and
+        // scale untouched - each already has its own dedicated control, and
+        // "reset position" shouldn't silently also undo those.
+        private void OnCarPositionReset(CarPositionResetRequestedEvent evt)
+        {
+            if (_placedInstance == null)
+                return;
+
+            _placedInstance.transform.localPosition = Vector3.zero;
+            ResetDragState();
+        }
+
+        // Decides UI-vs-car ownership right here, at touch-down, rather than
+        // re-checking every move - see _fingersStartedOverUi's comment for why.
         private void OnFingerDown(Finger finger)
         {
+            if (IsScreenPositionOverUi(finger.screenPosition))
+                _fingersStartedOverUi.Add(finger.index);
         }
 
         // Only ever does anything once something's placed. Reads
@@ -231,10 +308,16 @@ namespace NAS.Core
         // which finger's movement fired the event.
         private void OnFingerMove(Finger finger)
         {
-            if (_placedInstance == null || _isCustomizeSheetOpen || _isRotationSliderActive)
+            if (_placedInstance == null || _isCustomizeSheetOpen || _isRotationSliderActive || _isVerticalSliderActive)
                 return;
 
             var activeTouches = Touch.activeTouches;
+            for (int i = 0; i < activeTouches.Count; i++)
+            {
+                if (_fingersStartedOverUi.Contains(activeTouches[i].finger.index))
+                    return; // Any relevant finger started on a button/slider/sheet - never treat this as a car gesture.
+            }
+
             if (activeTouches.Count == 1)
             {
                 ResetPinchState();
@@ -255,8 +338,28 @@ namespace NAS.Core
         // cleanly from its own next onFingerMove.
         private void OnFingerUp(Finger finger)
         {
+            _fingersStartedOverUi.Remove(finger.index);
             ResetDragState();
             ResetPinchState();
+        }
+
+        // Hit-tests a screen position against the AR viewport's own UI
+        // panel. panel.Pick() already respects picking-mode="Ignore" (which
+        // is why the root VisualElement and its purely-decorative containers
+        // don't block this), so this correctly returns null for empty AR
+        // space and non-null for any real button, slider, or sheet content -
+        // without needing to know about any specific control.
+        private bool IsScreenPositionOverUi(Vector2 screenPosition)
+        {
+            if (_uiDocument == null || _uiDocument.rootVisualElement == null)
+                return false;
+
+            IPanel panel = _uiDocument.rootVisualElement.panel;
+            if (panel == null)
+                return false;
+
+            Vector2 panelPosition = RuntimePanelUtils.ScreenToPanel(panel, screenPosition);
+            return panel.Pick(panelPosition) != null;
         }
 
 #if UNITY_EDITOR
@@ -272,19 +375,47 @@ namespace NAS.Core
         {
             if (Touchscreen.current != null)
                 return;
-            if (_placedInstance == null || _isCustomizeSheetOpen || _isRotationSliderActive)
+            if (_placedInstance == null || _isCustomizeSheetOpen || _isRotationSliderActive || _isVerticalSliderActive)
                 return;
 
             if (Mouse.current != null && Mouse.current.leftButton.isPressed)
-                HandleReposition(Mouse.current.position.ReadValue());
+            {
+                Vector2 mousePos = Mouse.current.position.ReadValue();
+                if (IsScreenPositionOverUi(mousePos))
+                {
+                    ResetDragState();
+                    return;
+                }
+                HandleReposition(mousePos);
+            }
             else
                 ResetDragState();
         }
 #endif
 
+        // The anchor's pose is deliberately re-read fresh only when a NEW
+        // gesture starts, then frozen for that gesture's whole duration -
+        // see TryGetFrozenLocalHit for why re-reading it every frame (the
+        // first version of this fix) was itself a bug. Using the object's
+        // own current position as the reference when there's no anchor
+        // parent keeps the no-anchor fallback path behaving the same as
+        // before this existed.
         private void HandleReposition(Vector2 screenPos)
         {
-            if (!TryGetDragPlaneHit(screenPos, out var hitPoint))
+            if (_placedInstance == null)
+                return;
+
+            Transform planeReference = _placedInstance.transform.parent != null
+                ? _placedInstance.transform.parent
+                : _placedInstance.transform;
+
+            if (!_hasLastDragHit)
+            {
+                _gestureAnchorPosition = planeReference.position;
+                _gestureAnchorRotation = planeReference.rotation;
+            }
+
+            if (!TryGetFrozenLocalHit(screenPos, out var localHit))
             {
                 _hasLastDragHit = false;
                 return;
@@ -292,9 +423,21 @@ namespace NAS.Core
 
             if (_hasLastDragHit)
             {
-                Vector3 delta = hitPoint - _lastDragHit;
-                _placedInstance.transform.position += delta;
-                _repositionAccumThisGesture += delta.magnitude;
+                Vector3 rawLocalDelta = localHit - _lastLocalDragHit;
+                // The drag math above is entirely scale-agnostic - it's
+                // driven by a raycast against the floor, not by the car's
+                // own size - so the same finger movement always produces the
+                // same real-world-meters delta regardless of zoom. At a high
+                // pinch-scale multiplier (zoomed in to inspect details up
+                // close) that same delta is a much bigger fraction of what's
+                // on screen, so it feels wildly oversensitive. Dividing by
+                // the current scale multiplier restores a consistent FEEL
+                // across zoom levels - twice as zoomed in means half the
+                // real-world movement per finger-pixel, so fine positioning
+                // while zoomed in doesn't fling the car across the room.
+                Vector3 localDelta = rawLocalDelta / Mathf.Max(_scaleMultiplier, 0.01f);
+                _placedInstance.transform.localPosition += localDelta;
+                _repositionAccumThisGesture += localDelta.magnitude;
 
                 if (!_repositionCountedThisGesture && _repositionAccumThisGesture >= _repositionThresholdMeters)
                 {
@@ -304,31 +447,60 @@ namespace NAS.Core
                 }
             }
 
-            _lastDragHit = hitPoint;
+            _lastLocalDragHit = localHit;
             _hasLastDragHit = true;
         }
 
-        // Re-derived every frame from the anchor's (or the placed instance's
-        // own, if it has no anchor parent) CURRENT world transform, not a
-        // pose cached at placement time - AR Foundation's drift correction
-        // can move the anchor mid-gesture, and dragging against a stale plane
-        // would make the car visibly detach from the real floor.
-        private bool TryGetDragPlaneHit(Vector2 screenPos, out Vector3 hitPoint)
+        // Raycasts against a plane built from the FROZEN gesture-start
+        // anchor pose (_gestureAnchorPosition/_gestureAnchorRotation), not
+        // the anchor's live pose, and expresses the hit in that same frozen
+        // pose's local space.
+        //
+        // This went through two versions. The first read the anchor's LIVE
+        // pose every frame, on the reasoning that AR Foundation's drift
+        // correction could move the anchor mid-gesture and dragging against
+        // a stale plane would visibly detach the car from the real floor.
+        // That fixed the original bug (a translation correction mid-drag
+        // got double-applied - once automatically via the transform
+        // hierarchy, once again as a spurious drag delta - producing a
+        // sudden snap to a distant position), but it introduced a new one:
+        // a ROTATION correction (e.g. ARKit refining a plane's exact yaw as
+        // it scans more of the floor) makes the SAME physical point resolve
+        // to different local coordinates from one frame to the next, purely
+        // because the coordinate frame itself rotated - not because
+        // anything actually moved. That phantom delta could easily point
+        // opposite to the real finger movement.
+        //
+        // Freezing the reference pose for the gesture's duration fixes both:
+        // every hit point in this gesture is measured against the exact
+        // same (position, rotation), so only genuine screen-space finger
+        // movement produces a nonzero delta - any correction the anchor
+        // undergoes mid-gesture still reaches the car exactly once, via the
+        // ordinary (unfrozen) live parent transform, same as it would
+        // between gestures or with no drag happening at all.
+        private bool TryGetFrozenLocalHit(Vector2 screenPos, out Vector3 localHit)
         {
-            hitPoint = default;
+            localHit = default;
             if (Camera.main == null || _placedInstance == null)
                 return false;
 
-            Transform planeReference = _placedInstance.transform.parent != null
-                ? _placedInstance.transform.parent
-                : _placedInstance.transform;
-            var dragPlane = new Plane(planeReference.up, planeReference.position);
+            var dragPlane = new Plane(_gestureAnchorRotation * Vector3.up, _gestureAnchorPosition);
 
             Ray ray = Camera.main.ScreenPointToRay(screenPos);
-            if (!dragPlane.Raycast(ray, out float enter))
+            // Plane.Raycast returns true (with a negative `enter`) whenever
+            // the plane is behind the ray's origin along its direction, not
+            // just when the ray is genuinely pointing at the floor - without
+            // this check, a steep upward camera tilt (common when standing
+            // close to a placed car and looking slightly up at it) can
+            // produce a "hit" behind the camera, which reads as a wildly
+            // wrong, sometimes seemingly axis-flipped drag delta.
+            if (!dragPlane.Raycast(ray, out float enter) || enter < 0f)
                 return false;
 
-            hitPoint = ray.GetPoint(enter);
+            Vector3 worldHit = ray.GetPoint(enter);
+            localHit = _placedInstance.transform.parent != null
+                ? Quaternion.Inverse(_gestureAnchorRotation) * (worldHit - _gestureAnchorPosition)
+                : worldHit;
             return true;
         }
 

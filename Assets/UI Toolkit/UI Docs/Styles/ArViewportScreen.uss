@@ -106,13 +106,79 @@
     margin: 0;
 }
 
+.vertical-offset-slider-column {
+    position: absolute;
+    right: 16px;
+    top: 120px;
+    bottom: 160px;
+    width: 44px;
+    flex-direction: column;
+    align-items: center;
+    background-color: rgba(18, 18, 18, 0.55);
+    border-radius: 20px;
+    padding: 12px 0;
+}
+
+.vertical-offset-slider {
+    flex-grow: 1;
+    margin: 8px 0 0 0;
+}
+
+.reset-position-button {
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.3);
+    color: rgb(192, 192, 192);
+    font-size: 16px;
+    -unity-text-align: middle-center;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.reset-position-button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: rgb(0, 212, 255);
+    border-color: rgba(0, 212, 255, 0.6);
+}
+
 .settings-button-row {
     position: absolute;
     left: 0;
     right: 0;
     bottom: 24px;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
+}
+
+.test-drive-button {
+    height: 56px;
+    margin: 0 0 0 12px;
+    padding: 0 22px;
+    border-radius: 28px;
+    background-color: rgba(0, 212, 255, 0.18);
+    border-width: 1.5px;
+    border-color: rgba(0, 212, 255, 0.7);
+    color: rgb(0, 212, 255);
+    font-size: 16px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.test-drive-button:hover {
+    background-color: rgba(0, 212, 255, 0.28);
+}
+
+.test-drive-button--done {
+    background-color: rgba(18, 18, 18, 0.85);
+    border-color: rgba(192, 192, 192, 0.45);
+    color: rgb(192, 192, 192);
 }
 
 .settings-button {

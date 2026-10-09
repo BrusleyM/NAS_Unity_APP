@@ -21,6 +21,9 @@ namespace NAS.UI.Controllers
         [SerializeField] private VisualTreeAsset _splashCardUxml;
         [SerializeField] private VisualTreeAsset _loginCardUxml;
         [SerializeField] private VisualTreeAsset _registerCardUxml;
+        // Optional: falls back to Resources/UI/DealershipSelection.uxml when
+        // unassigned, so this screen needed no scene edit to add.
+        [SerializeField] private VisualTreeAsset _dealershipSelectionCardUxml;
         [SerializeField] private VisualTreeAsset _carSelectionCardUxml;
         [SerializeField] private VisualTreeAsset _estimatorCardUxml;
         [SerializeField] private VisualTreeAsset _carCardUxml;
@@ -65,21 +68,22 @@ namespace NAS.UI.Controllers
         {
             var session = GameManager.Instance;
 
-            if (session.CurrentUser != null && session.SelectedCar != null)
+            if (session.CurrentUser == null)
             {
-                if (session.ReturnToEstimator)
-                {
-                    ShowEstimatorCard();
-                    session.ReturnToEstimator = false;
-                }
-                else
-                {
-                    ShowCarSelectionScreen();
-                }
+                ShowLoginCard();
+            }
+            else if (session.SelectedDealership == null)
+            {
+                ShowDealershipSelectionScreen();
+            }
+            else if (session.SelectedCar != null && session.ReturnToEstimator)
+            {
+                ShowEstimatorCard();
+                session.ReturnToEstimator = false;
             }
             else
             {
-                ShowLoginCard();
+                ShowCarSelectionScreen();
             }
         }
 
@@ -88,6 +92,8 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<SessionAuthenticatedEvent>(OnAuthSucceeded);
             EventBus.Subscribe<NavigateToRegisterRequestedEvent>(OnNavigateToRegister);
             EventBus.Subscribe<NavigateToLoginRequestedEvent>(OnNavigateToLogin);
+            EventBus.Subscribe<SessionDealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Subscribe<ChangeDealershipRequestedEvent>(OnChangeDealershipRequested);
             EventBus.Subscribe<SessionCarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<SplashDismissedEvent>(OnSplashDismissed);
             EventBus.Subscribe<ExitArRequestedEvent>(OnExitAr);
@@ -99,6 +105,8 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<SessionAuthenticatedEvent>(OnAuthSucceeded);
             EventBus.Unsubscribe<NavigateToRegisterRequestedEvent>(OnNavigateToRegister);
             EventBus.Unsubscribe<NavigateToLoginRequestedEvent>(OnNavigateToLogin);
+            EventBus.Unsubscribe<SessionDealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Unsubscribe<ChangeDealershipRequestedEvent>(OnChangeDealershipRequested);
             EventBus.Unsubscribe<SessionCarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<SplashDismissedEvent>(OnSplashDismissed);
             EventBus.Unsubscribe<ExitArRequestedEvent>(OnExitAr);
@@ -112,7 +120,11 @@ namespace NAS.UI.Controllers
         // GameManager.AccessToken) is guaranteed to see up-to-date state. See
         // GameEvents.cs's doc comments on both event pairs for why this matters -
         // subscribing to the raw events directly here caused a real bug.
-        private void OnAuthSucceeded(SessionAuthenticatedEvent evt) => ShowCarSelectionScreen();
+        // Login always leads to "where are you buying from?" - GameManager clears
+        // SelectedDealership on every login, so there's nothing to skip past.
+        private void OnAuthSucceeded(SessionAuthenticatedEvent evt) => ShowDealershipSelectionScreen();
+        private void OnDealershipSelected(SessionDealershipSelectedEvent evt) => ShowCarSelectionScreen();
+        private void OnChangeDealershipRequested(ChangeDealershipRequestedEvent evt) => ShowDealershipSelectionScreen();
         private void OnNavigateToRegister(NavigateToRegisterRequestedEvent evt) => ShowRegisterCard();
         private void OnNavigateToLogin(NavigateToLoginRequestedEvent evt) => ShowLoginCard();
         // AR Scene is loaded additively exactly once per app session
@@ -139,6 +151,7 @@ namespace NAS.UI.Controllers
             // is still the one that clears this.
             EventBus.Publish(new LoadingStartedEvent("Entering AR..."));
             HideUi();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.ArViewport));
             if (!GameManager.Instance.IsArSceneLoaded)
             {
                 GameManager.Instance.IsArSceneLoaded = true;
@@ -200,6 +213,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _splashCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<SplashScreenController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Splash));
         }
 
         public void ShowLoginCard()
@@ -209,6 +223,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _loginCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<LoginCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Login));
         }
 
         public void ShowRegisterCard()
@@ -218,6 +233,24 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _registerCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<RegisterCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Register));
+        }
+
+        public void ShowDealershipSelectionScreen()
+        {
+            var uxml = _dealershipSelectionCardUxml != null
+                ? _dealershipSelectionCardUxml
+                : Resources.Load<VisualTreeAsset>("UI/DealershipSelection");
+            if (uxml == null)
+            {
+                Debug.LogError("Dealership selection UXML not found (Resources/UI/DealershipSelection).");
+                return;
+            }
+            _cardContainer.Clear();
+            RemoveCardControllers();
+            uxml.CloneTree(_cardContainer);
+            gameObject.AddComponent<DealershipSelectionController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.DealershipSelection));
         }
 
         public void ShowCarSelectionScreen()
@@ -228,6 +261,7 @@ namespace NAS.UI.Controllers
             _carSelectionCardUxml.CloneTree(_cardContainer);
             var carSelectionCtrl = gameObject.AddComponent<CarSelectionScreenController>();
             carSelectionCtrl.Initialize(_carCardUxml);
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.CarSelection));
         }
 
         public void ShowEstimatorCard()
@@ -237,6 +271,7 @@ namespace NAS.UI.Controllers
             RemoveCardControllers();
             _estimatorCardUxml.CloneTree(_cardContainer);
             gameObject.AddComponent<EstimatorCardController>();
+            EventBus.Publish(new ScreenShownEvent(ScreenNames.Estimator));
         }
 
         private void RemoveCardControllers()
@@ -249,6 +284,9 @@ namespace NAS.UI.Controllers
 
             var registerCtrl = GetComponent<RegisterCardController>();
             if (registerCtrl != null) Destroy(registerCtrl);
+
+            var dealershipCtrl = GetComponent<DealershipSelectionController>();
+            if (dealershipCtrl != null) Destroy(dealershipCtrl);
 
             var carSelectionCtrl = GetComponent<CarSelectionScreenController>();
             if (carSelectionCtrl != null) Destroy(carSelectionCtrl);

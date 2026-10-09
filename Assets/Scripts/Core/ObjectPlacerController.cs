@@ -21,7 +21,25 @@ namespace NAS.Core
 
         [Header("Settings")]
         [SerializeField] private bool _preventMultiplePerPlane = true; // Enable/disable plane tracking
-        [SerializeField] private float _minDistanceFromUser = 1f; // Placement point is pushed out to at least this far from the camera, so the car never spawns on top of the user
+        // Extra buffer ADDED to the car's own real footprint radius when
+        // pushing placement away from the camera - see TryPlaceObject. Not a
+        // standalone distance by itself any more: a single fixed number
+        // can't be right for every vehicle size (a compact and a full-size
+        // SUV need different clearance), so this is only the margin beyond
+        // whatever the actual placed car's footprint already requires.
+        [SerializeField] private float _extraClearanceFromUser = 0.3f;
+        // A plane detected only a moment ago hasn't had enough viewpoints for
+        // ARKit's pose estimate to converge yet - accepting a tap on it
+        // immediately anchors the car to a low-confidence initial guess,
+        // which is exactly what produced a large correction once the user
+        // moved around (see the "anchor jumped to couch height" report).
+        // Requiring a minimum tracked duration first gives ARKit a better
+        // initial fix, so any later correction is smaller.
+        [SerializeField] private float _minPlaneTrackingSeconds = 1.5f;
+        // How the placed car visually eases toward its anchor's corrected
+        // pose instead of snapping to it instantly - see AnchorFollowSmoother.
+        [SerializeField] private float _anchorFollowPositionSmoothTime = 0.35f;
+        [SerializeField] private float _anchorFollowRotationDegreesPerSecond = 90f;
 
         private IInputProvider _inputProvider;
         private IARPlacementService _placementService;
@@ -45,6 +63,26 @@ namespace NAS.Core
         private string _clientArSessionId;
         private DateTime _arSessionStartedAt;
 
+        // Tracks which anchor the placed car currently belongs to, so
+        // OnAnchorsChanged can tell "an anchor was removed" from "OUR
+        // anchor was removed" - see OnAnchorsChanged. Keyed by TrackableId
+        // rather than holding onto the ARAnchor reference itself, matching
+        // SinglePlaneVisualizerController's convention: a removed trackable
+        // may already be in a not-safely-usable state by the time the event
+        // fires, so only its id is trusted.
+        private TrackableId _currentAnchorId = TrackableId.invalidId;
+        private GameObject _currentPlacedInstance;
+        // The car is parented to THIS, not directly to the anchor - see
+        // AnchorFollowSmoother. Kept so ReanchorPlacedInstance can repoint
+        // it at a new anchor instead of recreating it (preserving the car's
+        // current local drag/rotate/scale offset), and so a fresh placement
+        // can clean up a leftover pivot from an earlier placement.
+        private GameObject _currentSmoothingPivot;
+
+        // When each currently-tracked plane was first detected (Time.time),
+        // used by IsPlaneStable to gate placement - see _minPlaneTrackingSeconds.
+        private readonly Dictionary<TrackableId, float> _planeFirstSeenAt = new Dictionary<TrackableId, float>();
+
         private void OnEnable()
         {
             _inputProvider = _inputProviderBehaviour as IInputProvider;
@@ -61,6 +99,11 @@ namespace NAS.Core
             EventBus.Subscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Subscribe<GestureCountsUpdatedEvent>(OnGestureCountsUpdated);
 
+            if (_anchorManager != null)
+                _anchorManager.trackablesChanged.AddListener(OnAnchorsChanged);
+            if (_planeManager != null)
+                _planeManager.trackablesChanged.AddListener(OnPlanesChangedForStability);
+
             ResetArSessionTracking();
         }
 
@@ -69,6 +112,97 @@ namespace NAS.Core
             EventBus.Unsubscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Unsubscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Unsubscribe<GestureCountsUpdatedEvent>(OnGestureCountsUpdated);
+
+            if (_anchorManager != null)
+                _anchorManager.trackablesChanged.RemoveListener(OnAnchorsChanged);
+            if (_planeManager != null)
+                _planeManager.trackablesChanged.RemoveListener(OnPlanesChangedForStability);
+        }
+
+        private void OnPlanesChangedForStability(ARTrackablesChangedEventArgs<ARPlane> args)
+        {
+            foreach (var plane in args.added)
+            {
+                if (!_planeFirstSeenAt.ContainsKey(plane.trackableId))
+                    _planeFirstSeenAt[plane.trackableId] = Time.time;
+            }
+            foreach (var removedPlane in args.removed)
+                _planeFirstSeenAt.Remove(removedPlane.Key);
+        }
+
+        private bool IsPlaneStable(TrackableId planeId) =>
+            _planeFirstSeenAt.TryGetValue(planeId, out float firstSeenAt) &&
+            Time.time - firstSeenAt >= _minPlaneTrackingSeconds;
+
+        // ARKit periodically merges plane fragments as it scans more of a
+        // surface (very common right after placement, when the user moves
+        // around and gives it a wider view of the floor) - when the plane an
+        // anchor is attached to gets merged away, AR Foundation removes that
+        // anchor, which by default destroys its GameObject. The car itself
+        // is safe from that destruction - it's parented to our own
+        // AnchorFollowSmoother pivot, not to the anchor directly (see
+        // TryPlaceObject) - but the pivot would be left tracking a dead
+        // target forever, silently un-anchored, unless we repoint it here.
+        private void OnAnchorsChanged(ARTrackablesChangedEventArgs<ARAnchor> args)
+        {
+            if (_currentAnchorId == TrackableId.invalidId || _currentSmoothingPivot == null)
+                return;
+
+            foreach (var removed in args.removed)
+            {
+                if (removed.Key != _currentAnchorId)
+                    continue;
+
+                ReanchorPlacedInstance();
+                break;
+            }
+        }
+
+        // Tries to attach a fresh anchor to whatever plane is currently
+        // detected under the pivot's present position, reusing the same
+        // placement-pose lookup used for the original tap so this stays
+        // consistent with how placement already decides "is there a plane
+        // here." If no plane is currently detected there, the pivot is left
+        // with no target (holds its last smoothed pose, un-corrected) rather
+        // than the car being lost outright - same fallback ObjectPlacerController
+        // already uses in TryPlaceObject when the very first placement finds
+        // no plane to anchor to.
+        private void ReanchorPlacedInstance()
+        {
+            Transform pivotTransform = _currentSmoothingPivot.transform;
+
+            ARAnchor newAnchor = null;
+            if (_anchorManager != null && _planeManager != null && Camera.main != null && _placementService != null)
+            {
+                Vector2 screenPos = Camera.main.WorldToScreenPoint(pivotTransform.position);
+                if (_placementService.TryGetPlacementPose(screenPos, out _, out TrackableId planeId))
+                {
+                    ARPlane plane = _planeManager.GetPlane(planeId);
+                    if (plane != null)
+                    {
+                        var reanchorPose = new Pose(pivotTransform.position, pivotTransform.rotation);
+                        newAnchor = _anchorManager.AttachAnchor(plane, reanchorPose);
+                    }
+                }
+            }
+
+            if (newAnchor != null)
+            {
+                // Snap the pivot to the new anchor immediately rather than
+                // smoothing into it - the OLD anchor's pose is now
+                // meaningless (it's gone), so there's nothing worth easing
+                // away from. Ordinary corrections from this point on still
+                // smooth normally via AnchorFollowSmoother.
+                pivotTransform.SetPositionAndRotation(newAnchor.transform.position, newAnchor.transform.rotation);
+                _currentSmoothingPivot.GetComponent<AnchorFollowSmoother>().SetTarget(newAnchor.transform);
+                _currentAnchorId = newAnchor.trackableId;
+                Debug.Log("Re-anchored placed car after its previous anchor was removed (likely a plane merge).");
+            }
+            else
+            {
+                _currentAnchorId = TrackableId.invalidId;
+                Debug.LogWarning("Placed car's anchor was removed and no plane was found to re-anchor it to - it will not be corrected for tracking drift until it is.");
+            }
         }
 
         // CarManipulationController publishes this every time any of its
@@ -117,6 +251,9 @@ namespace NAS.Core
             _rotationCount = 0;
             _clientArSessionId = Guid.NewGuid().ToString();
             _arSessionStartedAt = DateTime.UtcNow;
+            _currentAnchorId = TrackableId.invalidId;
+            _currentPlacedInstance = null;
+            _planeFirstSeenAt.Clear();
         }
 
         // Best-effort, same philosophy as every other telemetry send in this
@@ -238,8 +375,13 @@ namespace NAS.Core
             {
                 if (_placementService.TryGetPlacementPose(screenPos, out Pose pose, out TrackableId planeId))
                 {
+                    if (!IsPlaneStable(planeId))
+                    {
+                        Debug.Log("Surface detected but still stabilizing - give it a moment, then tap again.");
+                        // Optionally provide user feedback (UI text, sound)
+                    }
                     // Check if plane already used (if enabled)
-                    if (_preventMultiplePerPlane && _usedPlanes.Contains(planeId))
+                    else if (_preventMultiplePerPlane && _usedPlanes.Contains(planeId))
                     {
                         Debug.Log("This plane already has an object. Try a different plane.");
                         // Optionally provide user feedback (UI text, sound)
@@ -262,26 +404,73 @@ namespace NAS.Core
                         // session started tracking from, not the floor.
                         Vector3 placementPosition = pose.position;
 
+                        ARPlane hitPlane = _planeManager != null ? _planeManager.GetPlane(planeId) : null;
+
+                        GameObject placedInstance;
+                        if (_placementService.RaycastPrefabIsLiveInstance)
+                        {
+                            placedInstance = prefab;
+                            placedInstance.SetActive(true);
+                        }
+                        else
+                        {
+                            placedInstance = Instantiate(prefab);
+                            // The live-instance car path gets its shadow once,
+                            // in SelectedCarModelLoader, when the model is
+                            // first built - this Instantiate() branch is the
+                            // ONLY path that needs it added here, and does so
+                            // exactly once per placement since a fresh
+                            // instance is created every time.
+                            ContactShadowFactory.Attach(placedInstance);
+                        }
+
+                        // Set the FINAL orientation now, before measuring
+                        // bounds below - an axis-aligned bounding box's shape
+                        // depends on rotation, so measuring at whatever
+                        // arbitrary rotation the object happened to have
+                        // before this (e.g. identity, left over from being
+                        // parked off-scene) would give the wrong footprint
+                        // for a long, narrow vehicle depending on which way
+                        // it ends up facing.
+                        placedInstance.transform.rotation = pose.rotation;
+
                         // Tapping close to your own feet would spawn the car
-                        // (and its origin) right on top of you - push the
-                        // placement point out to at least _minDistanceFromUser
-                        // along the same direction from the camera, so it
-                        // never starts overlapping the user.
+                        // on top of you - push the placement point out along
+                        // the tap direction from the camera until the car's
+                        // OWN real footprint clears the camera by
+                        // _extraClearanceFromUser, not just its origin point.
+                        // A single flat distance (the original approach here)
+                        // works for a small placeholder cube but does almost
+                        // nothing for an actual ~4-5m car - pushing a
+                        // 4-5m-long object's origin out by one meter still
+                        // leaves most of its body swept back through wherever
+                        // the user is standing, which is exactly the
+                        // "placement leaves the user inside the car" bug
+                        // this replaces.
                         if (Camera.main != null)
                         {
+                            Bounds? footprintBounds = ContactShadowFactory.ComputeRendererBounds(placedInstance);
+                            // Half-diagonal of the XZ footprint - the
+                            // farthest any point of the (now correctly
+                            // rotated) car can be from its own center,
+                            // regardless of which side of it the user ends
+                            // up standing on.
+                            float footprintRadius = footprintBounds.HasValue
+                                ? new Vector2(footprintBounds.Value.extents.x, footprintBounds.Value.extents.z).magnitude
+                                : 0f;
+                            float requiredDistance = footprintRadius + _extraClearanceFromUser;
+
                             Vector3 camPos = Camera.main.transform.position;
                             Vector3 fromCamera = new Vector3(placementPosition.x - camPos.x, 0f, placementPosition.z - camPos.z);
                             float distance = fromCamera.magnitude;
-                            if (distance < _minDistanceFromUser)
+                            if (distance < requiredDistance)
                             {
                                 Vector3 direction = distance > 0.001f
                                     ? fromCamera / distance
                                     : new Vector3(Camera.main.transform.forward.x, 0f, Camera.main.transform.forward.z).normalized; // camera exactly on the point - fall back to where it's facing
-                                placementPosition = new Vector3(camPos.x + direction.x * _minDistanceFromUser, placementPosition.y, camPos.z + direction.z * _minDistanceFromUser);
+                                placementPosition = new Vector3(camPos.x + direction.x * requiredDistance, placementPosition.y, camPos.z + direction.z * requiredDistance);
                             }
                         }
-
-                        ARPlane hitPlane = _planeManager != null ? _planeManager.GetPlane(planeId) : null;
 
                         // Attach the car to an ARAnchor pinned to the hit
                         // plane instead of just setting a raw world-space
@@ -298,28 +487,36 @@ namespace NAS.Core
                             ? _anchorManager.AttachAnchor(hitPlane, anchoredPose)
                             : null;
 
-                        GameObject placedInstance;
-                        if (_placementService.RaycastPrefabIsLiveInstance)
-                        {
-                            placedInstance = prefab;
-                            placedInstance.SetActive(true);
-                        }
-                        else
-                        {
-                            placedInstance = Instantiate(prefab);
-                        }
+                        if (_currentSmoothingPivot != null)
+                            Destroy(_currentSmoothingPivot);
 
                         if (anchor != null)
                         {
-                            placedInstance.transform.SetParent(anchor.transform, worldPositionStays: false);
+                            // Car is parented to this pivot, not to the
+                            // anchor directly - the pivot eases toward the
+                            // anchor's pose (AnchorFollowSmoother) instead of
+                            // matching it exactly every frame, so a tracking
+                            // correction plays out as a glide, not a pop.
+                            var pivot = new GameObject("Car Anchor Pivot (smoothed)");
+                            pivot.transform.SetPositionAndRotation(anchor.transform.position, anchor.transform.rotation);
+                            var smoother = pivot.AddComponent<AnchorFollowSmoother>();
+                            smoother.Configure(_anchorFollowPositionSmoothTime, _anchorFollowRotationDegreesPerSecond);
+                            smoother.SetTarget(anchor.transform);
+
+                            placedInstance.transform.SetParent(pivot.transform, worldPositionStays: false);
                             placedInstance.transform.localPosition = Vector3.zero;
                             placedInstance.transform.localRotation = Quaternion.identity;
+                            _currentAnchorId = anchor.trackableId;
+                            _currentSmoothingPivot = pivot;
                         }
                         else
                         {
                             Debug.LogWarning("Could not create an ARAnchor for this placement - car will not be corrected for tracking drift.");
                             placedInstance.transform.SetPositionAndRotation(anchoredPose.position, anchoredPose.rotation);
+                            _currentAnchorId = TrackableId.invalidId;
+                            _currentSmoothingPivot = null;
                         }
+                        _currentPlacedInstance = placedInstance;
 
                         EventBus.Publish(new CarPlacedEvent(placedInstance));
                         _placementCount++;

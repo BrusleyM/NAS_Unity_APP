@@ -27,7 +27,15 @@ namespace NAS.Core
 
         [Tooltip("Project-wide switch for which backend API endpoint to use. Local = http://localhost:5080 (safe default, always works). ApiDomain = https://api.nas.test:8443 via the optional local nginx proxy (NAS_Backend/nginx/README.md) - only works on a device that resolves api.nas.test (this Mac via /etc/hosts, or another device via dnsmasq's device-DNS override). ApiIp = same nginx proxy, addressed by raw LAN IP instead of the hostname - for a device on a network where nothing resolves api.nas.test (e.g. a phone hotspot without the dnsmasq override set up); update the ApiIp ApiSettings asset's URL when the LAN IP changes. Keep this at Local in anything committed/pushed, or teammates without that setup will have auth silently fail. AuthController reads this in Start() rather than owning its own toggle.")]
         [SerializeField] private AppEnvironment _environment = AppEnvironment.Local;
-        public AppEnvironment CurrentEnvironment => _environment;
+        // What a build really uses, which is not always what is selected above: a release build
+        // ignores the dropdown (Production, or Staging with the NAS_STAGING_BUILD scripting
+        // define) so it cannot ship pointing at a developer machine. See EnvironmentPolicy.
+#if NAS_STAGING_BUILD
+        private const bool StagingBuild = true;
+#else
+        private const bool StagingBuild = false;
+#endif
+        public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild, StagingBuild);
 
         [Tooltip("Used when CurrentEnvironment is Local. Single project-wide reference - every feature that talks to the API resolves its ApiSettings through EnvironmentResolver.Resolve(), which reads these three fields, instead of each controller wiring its own copies.")]
         [SerializeField] private ApiSettings _apiSettings;
@@ -45,6 +53,13 @@ namespace NAS.Core
         public User CurrentUser { get; private set; }
         public string AccessToken { get; private set; }
         public VehicleInfo SelectedCar { get; private set; }
+        // The dealership the customer chose this login. Null until they pick
+        // one (reset on every login - they might be somewhere else today).
+        public DealershipInfo SelectedDealership { get; private set; }
+        // Last dealership picked on this device, remembered across launches
+        // only so the list can highlight it - never auto-selected.
+        private const string LastDealershipIdPrefKey = "NAS.LastDealershipId";
+        public int LastDealershipId => PlayerPrefs.GetInt(LastDealershipIdPrefKey, 0);
         public bool ReturnToEstimator { get; set; } = false;
         // Set by ParentPageController once the splash card has been shown/dismissed
         // for this app session, so returning to "Main App" from the AR scene (Back/
@@ -79,6 +94,13 @@ namespace NAS.Core
         // this int, not a client-generated string id, to satisfy
         // TelemetryService.ValidateCustomerSessionAsync on the backend.
         public int TelemetrySessionId { get; set; } = 0;
+        // Guards EndTelemetrySession() against firing more than once - the
+        // app can background/foreground (OnApplicationPause toggling false
+        // then true) many times in one real usage session, and quit can
+        // follow a pause that already sent the end signal. Only the first
+        // call should count as "the session ended" (see EndTelemetrySession's
+        // own comment for why re-opening a session on resume isn't handled).
+        private bool _telemetrySessionEnded = false;
         // Set by SelectedCarModelLoader after each load attempt - true only
         // if the customer's actual selected car model loaded (not a
         // placeholder-prefab fallback from a download/parse/instantiate
@@ -94,6 +116,15 @@ namespace NAS.Core
 
         private IStorageService _storage;
 
+        // Times each screen the customer spends time on (see ScreenVisitTracker).
+        // Visits can finish before there is anywhere to send them - splash, login
+        // and register all come before the telemetry session exists - so they wait
+        // here and are sent as soon as it does.
+        private ScreenVisitTracker _screens;
+        private readonly System.Collections.Generic.List<ScreenVisitTracker.Visit> _pendingVisits =
+            new System.Collections.Generic.List<ScreenVisitTracker.Visit>();
+        private const int MaxPendingVisits = 50;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -105,6 +136,7 @@ namespace NAS.Core
             DontDestroyOnLoad(gameObject);
 
             InitializeStorage();
+            _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
             // Subscribing here rather than in OnEnable() is deliberate: Unity
             // guarantees every object's Awake() finishes before any object's
@@ -120,6 +152,9 @@ namespace NAS.Core
             // as defense in depth, so GameManager is guaranteed ready before
             // anything else in the scene, for any event it's ever given.
             EventBus.Subscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Subscribe<ScreenShownEvent>(OnScreenShown);
+            EventBus.Subscribe<DealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Subscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
         }
@@ -127,8 +162,39 @@ namespace NAS.Core
         private void OnDisable()
         {
             EventBus.Unsubscribe<AuthSucceededEvent>(OnAuthSucceeded);
+            EventBus.Unsubscribe<ScreenShownEvent>(OnScreenShown);
+            EventBus.Unsubscribe<DealershipSelectedEvent>(OnDealershipSelected);
+            EventBus.Unsubscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
+        }
+
+        // OnApplicationPause(true) is the reliable "session ended" signal on
+        // mobile - most real sessions end with the user backgrounding the
+        // app (home button/app switcher), not force-quitting it, and a
+        // backgrounded app is NOT reliably given a chance to run further
+        // code once it's actually quit. OnApplicationQuit is kept too, as a
+        // fallback for platforms/cases where pause never fires before quit
+        // (e.g. stopping Play mode in the Editor) - _telemetrySessionEnded
+        // stops both from double-sending if pause already fired.
+        private void OnApplicationPause(bool pauseStatus)
+        {
+            if (pauseStatus)
+            {
+                // Close the current screen first, so its visit is sent before the session end.
+                _screens?.Pause();
+                EndTelemetrySession();
+            }
+            else
+            {
+                _screens?.Resume();
+            }
+        }
+
+        private void OnApplicationQuit()
+        {
+            _screens?.Stop();
+            EndTelemetrySession();
         }
 
         // Publishing the Session*Event AFTER the field assignment (not
@@ -140,8 +206,106 @@ namespace NAS.Core
         {
             CurrentUser = evt.User;
             AccessToken = evt.AccessToken;
+            SelectedDealership = null; // chosen fresh every login
             EventBus.Publish(new SessionAuthenticatedEvent(CurrentUser, AccessToken));
             StartTelemetrySession();
+        }
+
+        private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
+
+        // Best-effort like all telemetry. Sent now if the session exists, otherwise
+        // held (up to a cap) and sent when StartTelemetrySession gets its id.
+        private void OnScreenVisitFinished(ScreenVisitTracker.Visit visit)
+        {
+            if (TelemetrySessionId > 0 && !string.IsNullOrEmpty(AccessToken))
+            {
+                SendScreenVisit(visit);
+                return;
+            }
+            if (_pendingVisits.Count < MaxPendingVisits)
+                _pendingVisits.Add(visit);
+        }
+
+        private void FlushPendingScreenVisits()
+        {
+            if (TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            foreach (var visit in _pendingVisits)
+                SendScreenVisit(visit);
+            _pendingVisits.Clear();
+        }
+
+        private void SendScreenVisit(ScreenVisitTracker.Visit visit)
+        {
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new ScreenVisitTelemetryRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                clientScreenVisitId = visit.ClientId,
+                screenName = visit.Screen,
+                startedAt = visit.StartedAt.ToString("o"),
+                endedAt = visit.EndedAt.ToString("o")
+            };
+            telemetryApi.LogScreenVisit(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] screen visit '{visit.Screen}' failed: {result.Error.Detail}");
+            });
+        }
+
+        private void OnDealershipSelected(DealershipSelectedEvent evt)
+        {
+            var dealership = evt.Dealership;
+            if (dealership == null || dealership.id <= 0) return;
+
+            // A car (and any saved configuration) from another dealership's
+            // catalog must not carry over.
+            var changed = SelectedDealership != null && SelectedDealership.id != dealership.id;
+            if (SelectedDealership == null || changed)
+            {
+                SelectedCar = null;
+                SelectedConfigurationId = 0;
+            }
+            SelectedDealership = dealership;
+            PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
+            EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
+            ApplyDealershipToTelemetrySession();
+            // Switching after already choosing is a signal in itself (picked the
+            // wrong place, or shopping around); the first choice is not.
+            if (changed)
+                LogActivityEvent("dealership_changed", 0);
+        }
+
+        // The selected car's model could not be loaded - the customer is looking
+        // at a placeholder (or nothing), which explains an abandoned AR visit.
+        private void OnArModelLoadFailed(ArModelLoadFailedEvent evt) =>
+            LogActivityEvent("ar_load_failed", SelectedCar != null ? SelectedCar.id : 0);
+
+        // Tells the backend which dealership this session is for, so the
+        // lead/activity it produces is shown to that dealership's staff.
+        // Safe to call again (idempotent server-side). If the telemetry
+        // session hasn't started yet (id still 0), StartTelemetrySession's
+        // callback calls this once it has.
+        private void ApplyDealershipToTelemetrySession()
+        {
+            if (SelectedDealership == null || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new SetSessionDealershipRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                dealershipId = SelectedDealership.id
+            };
+            telemetryApi.SetSessionDealership(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] Failed to set session dealership: {result.Error.Detail}");
+            });
         }
 
         private void OnCarSelected(CarSelectedEvent evt)
@@ -176,9 +340,46 @@ namespace NAS.Core
             telemetryApi.StartSession(request, AccessToken, result =>
             {
                 if (result.Success)
+                {
                     TelemetrySessionId = result.Value.id;
+                    // The customer may have picked a dealership before this call returned.
+                    ApplyDealershipToTelemetrySession();
+                    // Screens they already left (splash, login...) were waiting for this id.
+                    FlushPendingScreenVisits();
+                }
                 else
                     Debug.LogWarning($"[NAS Telemetry] Failed to start session: {result.Error.Detail}");
+            });
+        }
+
+        // Closes out the session server-side so CustomerSession.EndedAt (and
+        // its computed DurationSeconds, which buyer-classification's
+        // SessionDuration feature reads) actually gets set - previously
+        // nothing ever called this and every session's duration was null
+        // forever. Only ends the FIRST time the app backgrounds or quits in
+        // a given login - a later resume keeps using the same
+        // TelemetrySessionId rather than opening a new session, so this
+        // deliberately doesn't try to model "session resumed after
+        // backgrounding" as a session boundary; that's a bigger design
+        // question than fixing the always-null duration.
+        private void EndTelemetrySession()
+        {
+            if (_telemetrySessionEnded || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            _telemetrySessionEnded = true;
+
+            var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
+            if (resolved.Settings == null) return;
+
+            var telemetryApi = new TelemetryApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = new EndCustomerSessionRequest
+            {
+                customerSessionId = TelemetrySessionId,
+                endedAt = DateTime.UtcNow.ToString("o")
+            };
+            telemetryApi.EndSession(request, AccessToken, result =>
+            {
+                if (!result.Success)
+                    Debug.LogWarning($"[NAS Telemetry] Failed to end session: {result.Error.Detail}");
             });
         }
 
@@ -191,7 +392,17 @@ namespace NAS.Core
         // enhancement, not something already being claimed here.
         private void LogVehicleViewedEvent(VehicleInfo vehicle)
         {
-            if (vehicle == null || vehicle.id <= 0 || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
+            if (vehicle == null || vehicle.id <= 0) return;
+            LogActivityEvent("vehicle_viewed", vehicle.id);
+        }
+
+        // Best-effort, same as every other telemetry send: skipped when the
+        // session isn't ready, a failure only logs a warning. vehicleId 0 means
+        // "no vehicle" (JsonUtility can't send a null int; the backend treats
+        // <= 0 as unset).
+        private void LogActivityEvent(string eventType, int vehicleId)
+        {
+            if (TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
 
             var resolved = EnvironmentResolver.Resolve("[NAS Telemetry]");
             if (resolved.Settings == null) return;
@@ -201,14 +412,14 @@ namespace NAS.Core
             {
                 customerSessionId = TelemetrySessionId,
                 clientEventId = Guid.NewGuid().ToString(),
-                eventType = "vehicle_viewed",
+                eventType = eventType,
                 occurredAt = DateTime.UtcNow.ToString("o"),
-                vehicleModelId = vehicle.id
+                vehicleModelId = vehicleId
             };
             telemetryApi.LogEvent(request, AccessToken, result =>
             {
                 if (!result.Success)
-                    Debug.LogWarning($"[NAS Telemetry] vehicle_viewed event failed: {result.Error.Detail}");
+                    Debug.LogWarning($"[NAS Telemetry] {eventType} event failed: {result.Error.Detail}");
             });
         }
 

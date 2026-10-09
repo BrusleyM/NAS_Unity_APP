@@ -17,5 +17,8 @@ namespace NAS.Core.Networking
         // matches the backend's ">0 means set" convention, since JsonUtility
         // can't send a real null for an unset int.
         public int savedConfigurationId;
+        // GameManager.TelemetrySessionId (0 = not started). Lets the backend
+        // refuse a vehicle that isn't from the dealership the customer chose.
+        public int customerSessionId;
     }
 }

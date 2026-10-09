@@ -74,8 +74,8 @@ reading data derived from a same-frame event the way the fixed bug was —
 they're a separate, milder concern (coupling/testability), still worth the
 dedicated pass mentioned above eventually, just not urgent or bug-causing.
 
-**Screen flow (current order):** Auth → car selection → AR placement →
-affordability calculator/estimator. `ParentPageController` is a pure
+**Screen flow (current order):** Auth → dealership selection → car selection →
+AR placement → affordability calculator/estimator. `ParentPageController` is a pure
 router — it holds `VisualTreeAsset` references for each screen (assigned in
 the Inspector) and swaps `_cardContainer`'s content in response to events. It
 does not know how login/register/auth work, only which screen to show next.
@@ -90,6 +90,67 @@ needs data from its creator (e.g. `CarSelectionScreenController` needs a
 `VisualTreeAsset` for the card template) uses an explicit `Initialize(...)` method
 called right after `AddComponent`, with `OnEnable` doing only DOM-querying/event
 wiring that doesn't depend on that data.
+
+## Dealership selection (before car selection)
+
+The customer picks where they're buying from (QR-code scanning is a possible v2).
+`DealershipSelectionController` (UXML in `Assets/Resources/UI/DealershipSelection.uxml`,
+loaded by `ParentPageController` via `Resources.Load` so no scene edit was needed)
+lists `GET /api/customer/dealerships` (only dealerships with active vehicles) and
+publishes `DealershipSelectedEvent`. Same raw/`Session*Event` split as car
+selection: `GameManager` is the only raw subscriber, sets `SelectedDealership`
+(cleared on every login, and clears `SelectedCar`/`SelectedConfigurationId` if the
+dealership changed), republishes `SessionDealershipSelectedEvent`, and tells the
+backend via `POST /api/telemetry/session/dealership` (deferred until
+`TelemetrySessionId` exists). The car list is fetched with that dealership's id, so
+a lead (which takes its dealership from the vehicle) always lands with the chosen
+one; the estimator/test-drive requests also send `customerSessionId` so the backend
+rejects a vehicle from a different dealership (409). The last choice is only
+remembered (PlayerPrefs) to highlight it, never auto-selected. The car selection
+screen shows the chosen dealership with a "Change" control
+(`ChangeDealershipRequestedEvent`).
+
+## Telemetry events that feed the ML model
+
+`GameManager` owns sending telemetry events (`LogActivityEvent`, best-effort, skipped until
+`TelemetrySessionId` exists). Besides `vehicle_viewed` it records two that the buyer
+classifier uses as features (`ar_load_failures`, `dealership_changes` - see `NAS_ML`'s
+README, "v4 candidate"):
+
+- `ar_load_failed` - `SelectedCarModelLoader` publishes `ArModelLoadFailedEvent(reason)` at each
+  place it falls back to the placeholder (`no_model_key`, `download`, `parse`, `instantiate`).
+  A customer who gave up because the car wouldn't load looks very different from one who lost
+  interest.
+- `dealership_changed` - logged when the customer picks a *different* dealership after already
+  choosing one (the first choice isn't a change).
+
+Both send `vehicleModelId = 0` when there is no vehicle (JsonUtility can't send a null int);
+the backend stores `<= 0` as null. Until a build with these ships the backend sees 0 for both,
+which the model treats as "none reported", not "none happened".
+
+## Screen timing (second counter beside the session timer)
+
+`ParentPageController` publishes `ScreenShownEvent(ScreenNames.X)` whenever a different
+screen becomes visible (splash, login, register, dealership_selection, car_selection,
+ar_viewport, estimator). `GameManager` feeds them to a `ScreenVisitTracker` (pure logic,
+`Assets/Scripts/Core/ScreenVisitTracker.cs`) which sends each finished stretch to
+`POST /api/telemetry/screen-visits` when the customer leaves the screen. App pause closes the
+current screen (so backgrounded time isn't counted as screen time) and resume reopens it; quit
+closes it for good. Visits under 0.5s are dropped. Splash/login/register finish before the
+telemetry session exists, so those visits are held (capped at 50) and sent once
+`StartTelemetrySession` gets its id.
+
+The session timer is unchanged - the two differ by idle/background time, and visits survive a
+force-quit up to the last screen change (the session end call doesn't). The backend also uses
+screen visits as one of the sources for "last activity" when a session never got an end time
+(`BuyerFeatureBuilder.SessionSeconds`).
+
+New screens: add a `ScreenNames` constant (snake_case, `^[a-z][a-z0-9_]{0,49}$`) and publish
+`ScreenShownEvent` where the screen appears. `AR Scene` screens are not separate - the whole AR
+scene is "ar_viewport" (its own AR/customise/calculator telemetry already has durations).
+
+The first Unity tests live in `Assets/Tests/EditMode` (`NAS.Tests.EditMode`; run via the Test
+Runner's EditMode tab) - add pure-logic tests there.
 
 ## Auth (`Assets/Scripts/Core/Auth/`)
 
@@ -129,6 +190,25 @@ the simplest default for anyone without the nginx/mkcert setup running;
 (`NAS_Backend/nginx/README.md`) already running — on any other machine it
 makes auth fail silently. See the README's "Optional: HTTPS for testing on a
 physical device" section for the full explanation.
+
+**Dev / Staging / Production.** `AppEnvironment` has five values:
+`Local`, `ApiDomain`, `ApiIp` (all "Dev": my machine, or my machine through
+the nginx proxy) plus `Staging` and `Production` (hosted backends with real
+certificates). Which one a build **actually uses** is
+`EnvironmentPolicy.Effective(...)` (pure logic, EditMode-tested): Editor and
+Development builds honour `GameManager._environment`; a **release build
+ignores it** and is `Production` — or `Staging` when built with the scripting
+define `NAS_STAGING_BUILD` — so a release can never ship pointing at
+localhost. `GameManager.CurrentEnvironment` returns the effective value, and
+`EnvironmentResolver` loads Staging/Production `ApiSettings` from
+`Resources/Config/ApiSettings.<Env>.asset` (no Inspector wiring to forget);
+a missing asset is a loud error, never a silent fall back to Local.
+`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Only Dev and Staging
+really exist: Staging is the SmarterASP.NET site at `https://nas-api.neoxr.co.za`
+(one site, one Postgres database on the trial plan). `Production` is defined but
+not created, so its asset currently points at the same host; when production is
+built, give it its own hostname and change that one asset. The full standard is
+`NAS_Backend/docs/ENVIRONMENTS.md`.
 
 **Recurring gotcha: adding a cross-folder script reference can compile
 "clean" right up until it doesn't.** This project uses one `.asmdef` per
@@ -334,6 +414,18 @@ produce them.
 Colors match the Figma spec (`#C0C0C0` neutral, `#00D4FF` active/accent) but
 `box-shadow` glow wasn't reproduced (UI Toolkit's USS support for it wasn't used
 here — check current Unity version support before assuming it's unavailable).
+
+A **"Request test drive"** pill sits next to the Settings button once a car is
+placed (`ArViewportController.OnTestDriveClicked`). It calls
+`POST /api/estimator/test-drive-requests`, which records a `test_drive_requested`
+activity event and gives the customer's lead `TestDriveRequestedAt` (creating a
+lead from their account if they haven't submitted the estimator yet — the
+estimator's submit then completes that same lead). A lead with a test drive
+requested AND the form submitted is classified Hot with confidence floored at
+0.90 by the backend (a hand-set rule in `MlDataService`, to be replaced once the
+model is retrained on real outcomes), and NAS-Admin explains why. This is the
+only real source of the `test_drive_requested` signal the ML training data
+counts.
 
 **Not yet built:** the camera-feed gradient scrim, and the real contents of the
 "Customize" sheet (the Wheel/Paint/Trims/Dashboard 4-item grid, Paint's 5 color
