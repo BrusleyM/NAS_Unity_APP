@@ -18,6 +18,8 @@ import yaml
 KINDS = {"ci", "deploy", "manual", "scheduled"}
 FLOATING_REFS = {"main", "master", "latest", "develop", "HEAD"}
 CI_PUSH_BRANCHES = {"main", "develop"}
+# A deploy may start from a push to these branches only: main is staging. Production is never branch-driven.
+DEPLOY_PUSH_BRANCHES = {"main"}
 
 
 def triggers_of(doc):
@@ -73,8 +75,8 @@ def check(name, text):
             bad("W6", "a 'ci' workflow must not run on tags (tags are for releases and deploys)")
         if kind == "ci" and push and set(push.get("branches") or []) - CI_PUSH_BRANCHES:
             bad("W6", f"a 'ci' workflow may run on pushes only to {sorted(CI_PUSH_BRANCHES)}; feature branches are covered by pull requests")
-        if kind == "deploy" and push and push.get("branches"):
-            bad("W6", "a 'deploy' workflow must never run on a branch push, only on tags or by hand")
+        if kind == "deploy" and push and set(push.get("branches") or []) - DEPLOY_PUSH_BRANCHES:
+            bad("W6", f"a 'deploy' workflow may run on a branch push only to {sorted(DEPLOY_PUSH_BRANCHES)} (that is staging); other branches never deploy")
 
     def concurrency_blocks():
         yield doc.get("concurrency")
@@ -173,7 +175,9 @@ def self_test():
     assert "W6" in rules(GOOD_CI.replace("branches: [ main ]", "tags: [ 'v*' ]"))
     assert "W6" in rules(GOOD_CI.replace("branches: [ main ]", "branches: [ main, feature/x ]"))
     assert "W6" in rules(GOOD_CI.replace("  pull_request:\n", "  schedule:\n    - cron: '0 3 * * *'\n"))
-    assert "W6" in rules(GOOD_DEPLOY.replace("tags: [ 'staging-*' ]", "branches: [ main ]"))
+    assert "W6" in rules(GOOD_DEPLOY.replace("tags: [ 'staging-*' ]", "branches: [ develop ]"))
+    assert "W6" in rules(GOOD_DEPLOY.replace("tags: [ 'staging-*' ]", "branches: [ main, feature/x ]"))
+    assert check("d.yml", GOOD_DEPLOY.replace("tags: [ 'staging-*' ]", "branches: [ main ]")) == []   # main = staging
     assert "W7" in rules(GOOD_CI.replace("cancel-in-progress: true", "cancel-in-progress: false"))
     assert "W7" in rules(GOOD_DEPLOY.replace("cancel-in-progress: false", "cancel-in-progress: true"))
     assert "W7" in rules(GOOD_DEPLOY.replace("    concurrency: { group: deploy, cancel-in-progress: false }\n", ""))
