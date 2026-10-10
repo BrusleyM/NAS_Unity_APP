@@ -545,3 +545,9 @@ file ("NAS Showroom") and is the source of truth for exact copy, validation rule
 and layout intent where the Unity build is ambiguous or hasn't caught up yet. Notable
 places the Unity build has intentionally diverged from it: car selection is a
 swipe-carousel here vs. prev/next buttons there (deliberate choice, not a gap).
+
+## Workflow rules
+
+Every `.github/workflows/*.yml` starts with `# kind: ci | deploy | manual | scheduled` and follows `../NAS_Backend/docs/WORKFLOW_RULES.md`
+(which triggers a kind may use, timeouts, concurrency, pinned actions, secrets only in deploys). `python3 .github/scripts/check_workflows.py`
+checks it, and CI runs that check on every `.github/` change.

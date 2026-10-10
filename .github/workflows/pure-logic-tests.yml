@@ -1,3 +1,4 @@
+# kind: ci
 name: Unity pure-logic tests
 
 # Unity builds and the full Test Runner need a Unity licence and (for iOS) a Mac with signing - those
