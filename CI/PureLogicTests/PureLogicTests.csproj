@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Runs the project's engine-free logic and its NUnit tests with plain `dotnet test`, so CI needs no
+    Unity licence. Only files that have NO UnityEngine dependency may be linked here:
+    ScreenVisitTracker, AppEnvironment, EnvironmentPolicy.
+    The same test files also run inside Unity (Test Runner > EditMode); this proves they stay
+    engine-free and pass.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <Compile Include="../../Assets/Scripts/Core/ScreenVisitTracker.cs" />
+    <Compile Include="../../Assets/Scripts/Core/AppEnvironment.cs" />
+    <Compile Include="../../Assets/Scripts/Core/EnvironmentPolicy.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/ScreenVisitTrackerTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/EnvironmentPolicyTests.cs" />
+  </ItemGroup>
+</Project>

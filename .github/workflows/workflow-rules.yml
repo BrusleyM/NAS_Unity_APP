@@ -1,0 +1,35 @@
+# kind: ci
+name: Workflow rules
+
+# Every workflow in this repo must follow docs/WORKFLOW_RULES.md (in NAS_Backend). This checks them on every
+# change to .github/, so a new or edited workflow cannot quietly break the rules.
+on:
+  pull_request:
+    paths: [ '.github/**' ]
+  push:
+    branches: [ main, develop ]
+    paths: [ '.github/**' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-rules-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check the workflow files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install pyyaml
+      - name: The checker itself still catches what it should
+        run: python .github/scripts/check_workflows.py --self-test
+      - name: Check this repo's workflows
+        run: python .github/scripts/check_workflows.py
