@@ -332,7 +332,7 @@ correction step. The working script bakes transforms via direct
 which has no operator/context/cache state to misbehave.
 
 **Now wired up:** each vehicle's corrected `.glb` is uploaded to Tigris under
-`carmodels/<key>.glb` (e.g. `carmodels/bmwm8demo.glb`), the DB's
+`dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (older notes below say `carmodels/<key>.glb`, the layout before 11 Oct 2026), the DB's
 `vehicle_model.tigris_model_key` column records which object belongs to which
 row, and `SelectedCarModelLoader`
 (`Assets/Scripts/Core/SelectedCarModelLoader.cs`, on the "ar man" GameObject
@@ -367,15 +367,6 @@ code change. Revisit once that's decided; when it lands, make sure the retry
 path also cleans up `_currentModelRoot` the same way `LoadSelectedCarAsync()`
 already does at its top, so a retry after a partial `InstantiateMainSceneAsync`
 failure doesn't leak.
-
-**`AssetBundleTest.cs`** (same "asset manager" GameObject) is a manual dev/test
-script demonstrating the (now-abandoned) AssetBundle download pattern — it's
-currently disabled (`m_Enabled: 0` in `AR Scene.unity`) because its `Start()`
-does a full upload/download/instantiate cycle every time the scene runs, which
-raced `GameManager.Instance` initialization and threw on a cold Play-mode entry
-straight into `AR Scene`. Left disabled; don't use it as a template for the
-glTFast-runtime path above, its download mechanics (`AssetBundle.LoadFromMemory`)
-don't apply there.
 
 ## AR viewport screen
 
@@ -498,71 +489,34 @@ in this project are added via `AddComponent<T>()` in code rather than serialized
 the Inspector, so this specifically matters for anything that *is* Inspector-wired
 (e.g. `ParentPageController`'s `VisualTreeAsset` fields).
 
-## Tigris storage
+## Tigris storage (3D models)
 
-`GameManager` owns an `IStorageService` (`DevStorageService`) for uploading/
-downloading 3D models by string key (`UploadModel`, `DownloadModel`, etc.) — this is
-for **3D AR assets only**, not 2D catalog thumbnails. There's also a second,
-separate manual-test path to the same bucket: `TigrisStorageManager` (its own S3
-client, own `UploadFileAsync`/`DownloadObjectAsync`) on the "asset manager"
-GameObject in `AR Scene.unity` — used directly (not through `IStorageService`) to
-upload the demo cars' corrected `.glb` files. **If you drive `TigrisStorageManager` (or any
-`Task`-returning upload/download call) from an Editor script via
-`execute_code`-style reflection, never block on it with
-`.GetAwaiter().GetResult()` in a loop** — this deadlocked Unity's main thread mid-
-session after the first of 11 uploads (killed the Editor's responsiveness to
-Stop/console entirely; only a lightweight ping-style check still answered). Fire
-each call without awaiting it in the same script invocation, or drive it through a
-coroutine, and verify completion out-of-band (e.g. list the bucket) instead of
-blocking in-process.
+**The app holds no storage credentials.** To show a car, `SelectedCarModelLoader` calls
+`GameManager.DownloadModel(vehicleId)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
+returns a short-lived pre-signed link for exactly that vehicle's file, (2) a plain `UnityWebRequest` fetches the file from
+the link. The API signs with the environment's read-only Tigris key, which lives in the API host's settings
+(`Storage__*`), never in this repo or the build. Which bucket is used follows from which API the app talks to
+(`CurrentEnvironment`), so there is no storage config in the app at all. Full convention, key handling and the
+backend endpoint: `NAS_Backend/docs/STORAGE.md`. For **3D AR assets only**, not 2D catalog thumbnails.
 
-`vehicle_model.tigris_model_key` (backend, nullable `varchar(200)`) is where each
-row's Tigris object key lives — see "Vehicle catalog: real 3D models" above for the
-current state of that join (uploaded and recorded in the DB, not yet consumed by
-Unity for actual AR placement).
+Uploading is not done from the app or the Editor: use `NAS_Backend/tools/tigris-upload-model.sh`.
+A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
+refuses any other key on a vehicle. A vehicle with no key, an inactive vehicle, or an API without storage settings
+(`503 storage_not_configured`) makes the download fail, and the loader falls back to the placeholder car.
 
-### Tigris MCP server (for AI-driven asset pipeline work, e.g. Blender passes)
+Deleted (11 Oct 2026): the AWS SDK plugin, `IStorageService`/`DevStorageService`/`DevStorageConfig`, `StoragePolicy` and the
+per-environment storage config assets (they would have embedded a key in every build), the in-Editor uploader
+(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. `_useProduction` on
+`GameManager` is unused (kept so the scene's serialized data is untouched).
 
-`.mcp.json` at the repo root registers Tigris's official MCP server
-(`@tigrisdata/tigris-mcp-server` via `npx`) for direct bucket access from an
-agent — download/upload/list against `neo-ar-showroom` without going through
-Unity at all, which matters when a Unity-driven task (Editor MCP tools) is
-busy at the same time. The file is committed (references env var *names*
-only, never actual secret values, matching this workspace's preference for
-shareable/repo-based config over local-only setup — see
-`feedback_shareable_tooling` in the AI memory system).
+**Reaching Tigris from a terminal:** the buckets live in your Fly.io account. `fly auth login` (opens the browser), then
+`fly storage list` / `fly storage dashboard <bucket>` to manage buckets and create access keys. For copying files use the
+AWS CLI with a Tigris key: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3=https://fly.storage.tigris.dev`,
+`AWS_REGION=auto`, then `aws s3 ls s3://nas-showroom-dev/`. Keys stay in your shell, never in git.
 
-Each person running this needs three env vars set in their shell **before**
-launching Claude Code (edited into the config mid-session doesn't take
-effect until a full restart — Claude Code doesn't watch `.mcp.json` for
-changes):
-```
-export AWS_ACCESS_KEY_ID="<Tigris access key from DevStorageConfig.asset>"
-export AWS_SECRET_ACCESS_KEY="<Tigris secret key from DevStorageConfig.asset>"
-export AWS_ENDPOINT_URL_S3="https://fly.storage.tigris.dev"
-```
-Same credentials `DevStorageService`/`TigrisStorageManager` already use
-(`Assets/Resources/Config/DevStorageConfig.asset`) — this is a second way to
-reach the same bucket, not a separate account. `${VAR}` interpolation in
-`.mcp.json`'s `env` block is confirmed reliable on Claude Code **CLI**;
-known unreliable on the Desktop app (upstream bug) — if driving this from
-Desktop, set the values directly rather than relying on interpolation.
-
-### TODO, not urgent — Tigris environment handling doesn't match Auth's pattern
-
-`GameManager._useProduction` (the other field under its `[Header("Environment")]`,
-alongside `_environment`/`AppEnvironment`) is currently **dead** — `InitializeStorage()`
-always constructs `DevStorageService` regardless of its value; the bool only
-feeds a `Debug.Log` line, so flipping it to `true` gets you a log claiming
-"Using PRODUCTION storage" while Dev storage silently keeps running underneath.
-
-**Deliberately not fixed now** — there's no plan for multiple Tigris storage
-environments at this stage of the project. Revisit this when AR integration
-starts (the AR placement step in the screen flow above, i.e. once vehicles
-actually need real downloaded 3D models rather than just placeholder testing).
-At that point, follow `AuthController`'s pattern: one enum on `GameManager`
-as the single source of truth, not a second independent bool that can drift
-(see the Auth section above for why that matters).
+**Testing a download from an Editor script:** never block on a `Task` with `.GetAwaiter().GetResult()` (it deadlocked
+Unity's main thread once); start it and check completion in a later call. `ModelDownloader` uses `UnityWebRequest`, so it
+needs the main loop running (Play mode; `runInBackground` is on in this project).
 
 ## Design reference
 
