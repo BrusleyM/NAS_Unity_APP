@@ -47,7 +47,9 @@ namespace NAS.UI.Controllers
         private VisualElement _carsContainer;
         private Label _emptyStateLabel;
         private Button _startButton;
-        private Button _changeDealershipButton;
+        private Button _menuButton;
+        private Label _positionLabel;
+        private Label _swipeHintLabel;
         private bool _isDragging;
         private float _dragStartX;
         private int _dragPointerId = -1;
@@ -106,16 +108,13 @@ namespace NAS.UI.Controllers
             _carsContainer = root.Q<VisualElement>("cars-container");
             _emptyStateLabel = root.Q<Label>("empty-state-label");
             _startButton = root.Q<Button>("start-ar-button");
-            _changeDealershipButton = root.Q<Button>("change-dealership-button");
-            var dealershipNameLabel = root.Q<Label>("dealership-name-label");
-            var dealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
-            if (dealershipNameLabel != null && dealership != null)
-                dealershipNameLabel.text = dealership.name;
-            if (_changeDealershipButton != null)
-            {
-                _changeDealershipButton.style.display = dealership != null ? DisplayStyle.Flex : DisplayStyle.None;
-                _changeDealershipButton.clicked += OnChangeDealershipClicked;
-            }
+            _positionLabel = root.Q<Label>("position-label");
+            _swipeHintLabel = root.Q<Label>("swipe-hint-label");
+            // The hamburger opens the side menu, which also holds the chosen dealership and its "Change" action
+            // (they used to be a pill under the subtitle).
+            _menuButton = root.Q<Button>("menu-button");
+            if (_menuButton != null)
+                _menuButton.clicked += OnMenuClicked;
 
             _pager = new CarPager(_carsContainer, _carCardTemplate, RequestCarThumbnail);
 
@@ -321,9 +320,24 @@ namespace NAS.UI.Controllers
             _emptyStateLabel.style.display = hasResults ? DisplayStyle.None : DisplayStyle.Flex;
             _carsScrollView.style.display = hasResults ? DisplayStyle.Flex : DisplayStyle.None;
             _startButton.SetEnabled(hasResults);
+            UpdatePositionIndicator();
         }
 
-        private void OnChangeDealershipClicked() => EventBus.Publish(new ChangeDealershipRequestedEvent());
+        private void OnMenuClicked() => EventBus.Publish(new MenuRequestedEvent());
+
+        // "2 / 7" and the swipe hint follow the carousel: hidden with no cars, the hint only when there is
+        // somewhere to swipe to.
+        private void UpdatePositionIndicator()
+        {
+            if (_positionLabel == null || _swipeHintLabel == null)
+                return;
+
+            var count = _filteredCars != null ? _filteredCars.Count : 0;
+            _positionLabel.style.display = count > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+            _swipeHintLabel.style.display = count > 1 ? DisplayStyle.Flex : DisplayStyle.None;
+            if (count > 0 && _pager != null)
+                _positionLabel.text = $"{_pager.CurrentIndex + 1} / {count}";
+        }
 
         private void OnStartARClicked()
         {
@@ -350,8 +364,8 @@ namespace NAS.UI.Controllers
                 _searchField.UnregisterValueChangedCallback(_onSearchChanged);
             if (_startButton != null)
                 _startButton.clicked -= OnStartARClicked;
-            if (_changeDealershipButton != null)
-                _changeDealershipButton.clicked -= OnChangeDealershipClicked;
+            if (_menuButton != null)
+                _menuButton.clicked -= OnMenuClicked;
 
             if (_carsScrollView != null)
             {
@@ -426,6 +440,7 @@ private void OnCarTrackPointerDown(PointerDownEvent evt)
             // around the (possibly new) center slot, so rest position is always
             // translate 0 — nothing to compute or ease toward.
             _carsContainer.style.translate = new Translate(0, 0);
+            UpdatePositionIndicator();
         }
 }
 }

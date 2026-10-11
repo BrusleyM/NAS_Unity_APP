@@ -14,8 +14,48 @@
 }
 
 .header {
+    flex-direction: row;
     align-items: center;
     margin-bottom: 8%;
+}
+
+/* Hamburger button (opens the side menu): three bars drawn as elements, no icon asset needed. */
+.menu-button {
+    width: 36px;
+    height: 36px;
+    margin: 0;
+    padding: 0;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.18);
+    border-radius: 8px;
+}
+
+.menu-button:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+}
+
+.menu-bar {
+    width: 16px;
+    height: 2px;
+    margin: 2px 0;
+    border-radius: 1px;
+    background-color: rgb(192, 192, 192);
+}
+
+.header-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    align-items: center;
+}
+
+/* Same width as the menu button, so the title stays centred. */
+.header-spacer {
+    width: 36px;
+    flex-shrink: 0;
 }
 
 .title {
@@ -216,6 +256,13 @@
     background-color: rgba(0, 150, 200, 0.9);
 }
 
+/* No cars to start with (loading, failed, or nothing matches the filter): greyed, as in the Figma design. */
+.start-button:disabled {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(192, 192, 192, 0.15);
+    color: rgba(192, 192, 192, 0.35);
+}
+
 .unity-scroller {
     display: none;
 }
@@ -223,24 +270,18 @@
 
 /* Shows the chosen dealership under the title; tapping it goes back to the
    dealership list. */
-.change-dealership-button {
-    flex-direction: row;
-    align-items: center;
-    margin: 12px 0 0 0;
-    padding: 6px 12px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border-width: 1px;
-    border-color: rgba(192, 192, 192, 0.2);
-    border-radius: 16px;
+
+/* "2 / 7" under the card, and the swipe hint below it. */
+.position-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: rgba(192, 192, 192, 0.5);
+    -unity-text-align: middle-center;
 }
 
-.change-dealership-name {
+.swipe-hint-label {
+    margin-bottom: 12px;
     font-size: 12px;
-    color: rgb(192, 192, 192);
-}
-
-.change-dealership-action {
-    margin-left: 8px;
-    font-size: 12px;
-    color: rgb(0, 212, 255);
+    color: rgba(192, 192, 192, 0.3);
+    -unity-text-align: middle-center;
 }

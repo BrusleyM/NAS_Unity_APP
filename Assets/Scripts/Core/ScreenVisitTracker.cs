@@ -12,6 +12,9 @@ namespace NAS.Core
         public const string CarSelection = "car_selection";
         public const string ArViewport = "ar_viewport";
         public const string Estimator = "estimator";
+        public const string EditProfile = "edit_profile";
+        public const string ChangePassword = "change_password";
+        public const string Privacy = "privacy";
     }
 
     /// <summary>

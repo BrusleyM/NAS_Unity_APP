@@ -1,31 +1,58 @@
-/* Dealership selection - shown after login, before car selection. The
-   customer picks where they're buying from, so the lead they generate lands
-   with that dealership. Same palette as CarSelectionScreen.uss. */
+/* Dealership selection - shown after login, before car selection, and again from the side menu's "Change".
+   The customer taps a card to choose, then confirms with the Continue button pinned at the bottom (so a mis-tap
+   can't commit). Palette matches the Figma design and CarSelectionScreen.uss. */
 
 .dealership-root {
     flex-grow: 1;
+    width: 100%;
     background-color: transparent;
     flex-direction: column;
-    padding: 6% 5% 24px 5%;
+    padding: 6% 5% 0 5%;
 }
 
 .dealership-header {
+    flex-direction: row;
     align-items: center;
-    margin-bottom: 6%;
+    margin-bottom: 5%;
+}
+
+.dealership-header-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    align-items: center;
+}
+
+/* Back (change mode only). Its width is mirrored by the margin on the title block so the title stays centred
+   when it is visible; hidden, the title is centred on its own. */
+.dealership-back-button {
+    margin: 0 8px 0 0;
+    padding: 6px 12px;
+    flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.2);
+    border-radius: 8px;
+    color: rgb(192, 192, 192);
+    font-size: 12px;
+}
+
+.dealership-back-button:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+    color: rgb(0, 212, 255);
 }
 
 .dealership-title {
-    font-size: 24px;
+    font-size: 22px;
     -unity-text-align: middle-center;
-    margin-bottom: 2%;
-    color: rgb(192, 192, 192);
+    margin-bottom: 2px;
+    color: rgb(255, 255, 255);
     -unity-font-style: bold;
 }
 
 .dealership-subtitle {
     font-size: 12px;
     -unity-text-align: middle-center;
-    color: rgba(192, 192, 192, 0.6);
+    color: rgba(192, 192, 192, 0.55);
 }
 
 .dealership-list {
@@ -34,63 +61,108 @@
 
 .dealership-card {
     flex-direction: row;
-    align-items: center;
+    align-items: flex-start;
     margin: 0 0 12px 0;
-    padding: 0 16px 0 0;
-    background-color: rgba(255, 255, 255, 0.05);
+    padding: 16px;
+    background-color: rgba(255, 255, 255, 0.04);
     border-width: 1px;
-    border-color: rgba(192, 192, 192, 0.2);
+    border-color: rgba(192, 192, 192, 0.12);
     border-radius: 12px;
-    overflow: hidden;
+    transition-duration: 0.2s;
 }
 
 .dealership-card:hover {
-    background-color: rgba(0, 212, 255, 0.12);
+    border-color: rgba(0, 212, 255, 0.35);
+}
+
+/* The one the customer tapped (not yet confirmed). */
+.dealership-card--selected {
+    background-color: rgba(0, 212, 255, 0.08);
     border-color: rgba(0, 212, 255, 0.5);
-}
-
-/* The dealership picked last time on this device - a hint, not a selection. */
-.dealership-card--last {
-    border-color: rgba(0, 212, 255, 0.6);
-}
-
-.dealership-card-accent {
-    width: 4px;
-    align-self: stretch;
-    margin-right: 14px;
-    background-color: rgb(0, 212, 255);
 }
 
 .dealership-card-body {
     flex-grow: 1;
     flex-shrink: 1;
-    padding: 16px 0;
 }
 
 .dealership-card-name {
-    font-size: 16px;
-    color: rgb(230, 230, 230);
+    font-size: 15px;
+    color: rgb(255, 255, 255);
     -unity-font-style: bold;
     -unity-text-align: middle-left;
     white-space: normal;
 }
 
+.dealership-card--selected .dealership-card-name {
+    color: rgb(0, 212, 255);
+}
+
 .dealership-card-detail {
+    flex-direction: row;
+    align-items: center;
     margin-top: 4px;
+}
+
+.dealership-card-icon {
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    flex-shrink: 0;
+    -unity-background-scale-mode: scale-to-fit;
+    -unity-background-image-tint-color: rgba(192, 192, 192, 0.5);
+}
+
+.dealership-card-icon--pin {
+    background-image: url("project://database/Assets/Textures/icons/map-pin.svg");
+}
+
+.dealership-card-icon--phone {
+    background-image: url("project://database/Assets/Textures/icons/phone.svg");
+}
+
+.dealership-card-detail-text {
     font-size: 12px;
     color: rgba(192, 192, 192, 0.65);
     -unity-text-align: middle-left;
     white-space: normal;
+    flex-shrink: 1;
+}
+
+.dealership-card-side {
+    align-items: flex-end;
+    margin-left: 8px;
+    flex-shrink: 0;
 }
 
 .dealership-card-badge {
-    margin-left: 8px;
+    margin-bottom: 6px;
     padding: 2px 8px;
     font-size: 10px;
     color: rgb(0, 212, 255);
     border-width: 1px;
     border-color: rgba(0, 212, 255, 0.5);
     border-radius: 8px;
+}
+
+.dealership-card-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    background-color: rgb(0, 212, 255);
+    justify-content: center;
+    align-items: center;
+    display: none;
+}
+
+.dealership-card--selected .dealership-card-check {
+    display: flex;
+}
+
+.dealership-card-check-label {
+    color: rgb(0, 0, 0);
+    font-size: 12px;
+    -unity-font-style: bold;
 }
 
 .dealership-status {
@@ -114,4 +186,44 @@
     border-radius: 12px;
     color: white;
     font-size: 14px;
+}
+
+/* Pinned at the bottom of the screen. */
+.dealership-footer {
+    flex-shrink: 0;
+    padding: 12px 0 24px 0;
+    border-top-width: 1px;
+    border-top-color: rgba(192, 192, 192, 0.1);
+}
+
+.dealership-change-note {
+    margin-bottom: 10px;
+    color: rgba(192, 192, 192, 0.6);
+    font-size: 11px;
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+
+.dealership-continue-button {
+    margin: 0;
+    padding: 14px 4%;
+    background-color: rgba(0, 212, 255, 0.85);
+    border-width: 1px;
+    border-color: rgba(0, 212, 255, 0.5);
+    border-radius: 12px;
+    color: rgb(255, 255, 255);
+    font-size: 14px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.dealership-continue-button:hover {
+    background-color: rgba(0, 150, 200, 0.95);
+}
+
+/* Disabled until a card has been tapped. */
+.dealership-continue-button:disabled {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(192, 192, 192, 0.12);
+    color: rgba(192, 192, 192, 0.4);
 }

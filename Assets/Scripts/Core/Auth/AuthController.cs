@@ -49,13 +49,18 @@ namespace NAS.Core.Auth
         {
             EventBus.Subscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Subscribe<RegisterRequestedEvent>(HandleRegisterRequested);
+            EventBus.Subscribe<LogoutRequestedEvent>(HandleLogoutRequested);
         }
 
         private void OnDisable()
         {
             EventBus.Unsubscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Unsubscribe<RegisterRequestedEvent>(HandleRegisterRequested);
+            EventBus.Unsubscribe<LogoutRequestedEvent>(HandleLogoutRequested);
         }
+
+        // Forgets the stored token. GameManager clears the rest of the session on the same event.
+        private void HandleLogoutRequested(LogoutRequestedEvent evt) => Logout();
 
 private void HandleLoginRequested(LoginRequestedEvent evt)
         {

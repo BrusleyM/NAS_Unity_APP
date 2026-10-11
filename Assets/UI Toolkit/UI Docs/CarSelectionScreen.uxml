@@ -2,12 +2,16 @@
     <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/CarSelectionScreen.uss?fileID=7433441132597879392&amp;guid=c42ab439a095e44d2a33bd89f7e1a040&amp;type=3#CarSelectionScreen"/>
     <ui:VisualElement name="car-selection-root" class="car-selection-root" style="width: 100%;">
         <ui:VisualElement name="header-section" class="header">
-            <ui:Label text="Select Your Car" class="title"/>
-            <ui:Label text="Choose a model to begin your AR experience" class="subtitle"/>
-            <ui:Button name="change-dealership-button" class="change-dealership-button">
-                <ui:Label name="dealership-name-label" text="" class="change-dealership-name"/>
-                <ui:Label text="Change" class="change-dealership-action"/>
+            <ui:Button name="menu-button" class="menu-button">
+                <ui:VisualElement class="menu-bar"/>
+                <ui:VisualElement class="menu-bar"/>
+                <ui:VisualElement class="menu-bar"/>
             </ui:Button>
+            <ui:VisualElement class="header-text">
+                <ui:Label text="Select Your Car" class="title"/>
+                <ui:Label text="Choose a model to begin your AR experience" class="subtitle"/>
+            </ui:VisualElement>
+            <ui:VisualElement class="header-spacer"/>
         </ui:VisualElement>
         <ui:VisualElement name="tools-container" class="tools-container">
             <ui:VisualElement name="types-container" class="dropdown-container">
@@ -24,6 +28,8 @@
         <ui:VisualElement name="cars-scroll-view" class="cars-scroll-view" style="align-items: center; justify-content: center;">
             <ui:VisualElement name="cars-container" class="cars-container" style="align-content: flex-start; align-items: stretch; width: 100%;"/>
         </ui:VisualElement>
+        <ui:Label name="position-label" text="" class="position-label" style="display: none;"/>
+        <ui:Label name="swipe-hint-label" text="&#8592; swipe to browse &#8594;" class="swipe-hint-label" style="display: none;"/>
         <ui:Label name="empty-state-label" text="No cars match your search." class="empty-state" style="display: none;"/>
         <ui:Button name="start-ar-button" text="Start AR Experience" class="start-button"/>
         <ui:VisualElement name="dropdown-menu" class="dropdown-menu" style="display: none;"/>

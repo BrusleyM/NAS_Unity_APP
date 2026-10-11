@@ -157,6 +157,8 @@ namespace NAS.Core
             EventBus.Subscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
+            EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
         }
 
         private void OnDisable()
@@ -167,6 +169,8 @@ namespace NAS.Core
             EventBus.Unsubscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
+            EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
         }
 
         // OnApplicationPause(true) is the reliable "session ended" signal on
@@ -212,6 +216,35 @@ namespace NAS.Core
         }
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
+
+        // "Sign Out" from the menu. Order matters: the screen the customer is leaving and the telemetry session
+        // both belong to THIS login, so they are closed (and sent with the old session id and token) before the
+        // state is cleared. Stop() closes the current screen visit for good; the Login screen shown next starts a
+        // fresh one. SessionEndedEvent goes out only after the state is cleared (see its doc comment).
+        private void OnLogoutRequested(LogoutRequestedEvent evt)
+        {
+            _screens?.Stop();
+            EndTelemetrySession();
+
+            CurrentUser = null;
+            AccessToken = null;
+            SelectedCar = null;
+            SelectedDealership = null;
+            SelectedConfigurationId = 0;
+            ReturnToEstimator = false;
+            TelemetrySessionId = 0;
+            _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
+            _pendingVisits.Clear();         // visits waiting for a session id belonged to the one that just ended
+
+            EventBus.Publish(new SessionEndedEvent());
+        }
+
+        // The server saved a profile edit: keep the name the rest of the app reads (menu header) current.
+        private void OnProfileUpdated(ProfileUpdatedEvent evt)
+        {
+            if (CurrentUser == null) return;
+            CurrentUser.displayName = $"{evt.FirstName} {evt.LastName}".Trim();
+        }
 
         // Best-effort like all telemetry. Sent now if the session exists, otherwise
         // held (up to a cap) and sent when StartTelemetrySession gets its id.

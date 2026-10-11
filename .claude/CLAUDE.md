@@ -110,6 +110,32 @@ remembered (PlayerPrefs) to highlight it, never auto-selected. The car selection
 screen shows the chosen dealership with a "Change" control
 (`ChangeDealershipRequestedEvent`).
 
+## Side menu and profile screens (Figma update of 11 Oct 2026)
+
+Car Selection's hamburger button publishes `MenuRequestedEvent`; `ParentPageController` overlays
+`Resources/UI/HamburgerDrawer.uxml` on the document root (it needs no scene edit - the menu and its three screens
+load from `Resources/UI/`, like the dealership list). The menu shows the signed-in customer and the chosen dealership
+(with "Change", which reuses `ChangeDealershipRequestedEvent`) and announces Edit Profile / Change Password / Privacy /
+Sign Out as events. The three screens are ordinary cards (`EditProfile`, `ChangePassword`, `Privacy` UXML plus matching
+controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which returns to Car Selection.
+
+- Backend: `GET/PUT /api/customer/profile` and `POST /api/customer/auth/change-password`
+  (NAS_Backend `CustomerProfileController` / `CustomerAuthController`). The email is read-only.
+  Changing a password needs the current one; existing tokens stay valid until they expire.
+- Sign Out: `LogoutRequestedEvent` -> `AuthController` forgets the token, `GameManager` ends the telemetry
+  session (the leaving screen's visit is sent first) and clears the session, then publishes `SessionEndedEvent`
+  (same "publish after the state is set" pattern as `SessionAuthenticatedEvent`); the router shows Login on that.
+- Client-side validation for the profile forms is `Core/ProfileValidation.cs` (pure logic, unit-tested and also
+  compiled by `CI/PureLogicTests`), using the same rules as registration and the backend.
+- The dealership screen (`Resources/UI/DealershipSelection.uxml`) now selects a card and confirms with a Continue
+  button; it is in "change mode" (Back button, "Current" badge, a warning that the selected car is cleared) whenever
+  `GameManager.SelectedDealership` is already set, i.e. when reached from the menu rather than straight after login.
+- `uxml.Instantiate()` wraps the UXML in a `TemplateContainer`: remove that wrapper, not just the inner element, or
+  an empty full-screen element is left over the screen and swallows every tap (this happened with the menu).
+- The UXML `is-password` attribute is not reliable; set `isPasswordField = true` in code (as `LoginCardController` does).
+- The Privacy screen's text is a plain-language summary of what the app records today, written from the code. It makes no
+  promises about retention or deletion - review it before release.
+
 ## Telemetry events that feed the ML model
 
 `GameManager` owns sending telemetry events (`LogActivityEvent`, best-effort, skipped until
