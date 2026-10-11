@@ -1,8 +1,6 @@
 using NAS.Core.Interfaces;
 using NAS.Core.Events;
 using NAS.Core.Networking;
-using NAS.Storage;
-using NAS.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -23,7 +21,7 @@ namespace NAS.Core
 
         [Header("Environment")]
         [Tooltip("If true, uses production Cognito settings; otherwise uses development basic credentials.")]
-        // Unused since storage follows the environment (StoragePolicy); kept so the scene's serialized data is untouched.
+        // Unused: kept only so the scene's serialized data is untouched.
         [SerializeField] private bool _useProduction = false;
 
         [Tooltip("Project-wide switch for which backend API endpoint to use. Local = http://localhost:5080 (safe default, always works). ApiDomain = https://api.nas.test:8443 via the optional local nginx proxy (NAS_Backend/nginx/README.md) - only works on a device that resolves api.nas.test (this Mac via /etc/hosts, or another device via dnsmasq's device-DNS override). ApiIp = same nginx proxy, addressed by raw LAN IP instead of the hostname - for a device on a network where nothing resolves api.nas.test (e.g. a phone hotspot without the dnsmasq override set up); update the ApiIp ApiSettings asset's URL when the LAN IP changes. Keep this at Local in anything committed/pushed, or teammates without that setup will have auth silently fail. AuthController reads this in Start() rather than owning its own toggle.")]
@@ -115,7 +113,7 @@ namespace NAS.Core
         // pattern as SelectedConfigurationId above.
         public bool CurrentArModelLoadSucceeded { get; set; } = false;
 
-        private IStorageService _storage;
+        private ModelDownloader _modelDownloader;
 
         // Times each screen the customer spends time on (see ScreenVisitTracker).
         // Visits can finish before there is anywhere to send them - splash, login
@@ -136,7 +134,7 @@ namespace NAS.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            InitializeStorage();
+            _modelDownloader = new ModelDownloader(this);
             _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
             // Subscribing here rather than in OnEnable() is deliberate: Unity
@@ -457,59 +455,12 @@ namespace NAS.Core
             });
         }
 
-        private void InitializeStorage()
+        // The app holds no storage credentials: the API signs a short-lived link for the vehicle's model and the file is
+        // downloaded from that link (see ModelDownloader and NAS_Backend/docs/STORAGE.md).
+        public Task<Result<byte[]>> DownloadModel(int vehicleId)
         {
-            // The bucket follows the app environment (StoragePolicy), the same single source of truth as the API
-            // address. No silent fallback to the dev bucket: a missing asset or key is a loud error, because pointing
-            // a staging/production build at the dev bucket would serve the wrong files (ids differ per environment).
-            var path = StoragePolicy.ConfigResourcePath(CurrentEnvironment);
-            var asset = Resources.Load<DevStorageConfig>(path);
-            if (asset == null)
-            {
-                Debug.LogError($"Storage config not found at Resources/{path} for environment {CurrentEnvironment}.");
-                return;
-            }
-            if (!asset.HasCredentials)
-            {
-                Debug.LogError($"Storage config Resources/{path} has no access key yet (environment {CurrentEnvironment}): 3D models cannot be downloaded. See NAS_Backend/docs/STORAGE.md.");
-                return;
-            }
-
-            IStorageConfig config = asset;
-            _storage = new DevStorageService(config);
-
-            Debug.Log($"GameManager: {CurrentEnvironment} storage, bucket '{config.BucketName}'.");
-        }
-
-        // Public storage methods — unchanged.
-        public async Task<Result> UploadModel(string localFilePath, string modelKey)
-        {
-            if (_storage == null) return Result.Failure("Storage not initialized.");
-            return await _storage.UploadModelAsync(localFilePath, modelKey);
-        }
-
-        public async Task<Result<byte[]>> DownloadModel(string modelKey)
-        {
-            if (_storage == null) return Result<byte[]>.Failure("Storage not initialized.");
-            return await _storage.DownloadModelAsync(modelKey);
-        }
-
-        public async Task<Result<List<string>>> ListModels(string prefix = "")
-        {
-            if (_storage == null) return Result<List<string>>.Failure("Storage not initialized.");
-            return await _storage.ListModelsAsync(prefix);
-        }
-
-        public async Task<Result> UploadModels(List<string> localFilePaths, List<string> modelKeys)
-        {
-            if (_storage == null) return Result.Failure("Storage not initialized.");
-            return await _storage.UploadModelsAsync(localFilePaths, modelKeys);
-        }
-
-        public async Task<Result<List<(string Key, byte[] Data)>>> DownloadModels(List<string> modelKeys)
-        {
-            if (_storage == null) return Result<List<(string Key, byte[] Data)>>.Failure("Storage not initialized.");
-            return await _storage.DownloadModelsAsync(modelKeys);
+            if (string.IsNullOrEmpty(AccessToken)) return Task.FromResult(Result<byte[]>.Failure("Not signed in."));
+            return _modelDownloader.DownloadAsync(vehicleId, AccessToken);
         }
     }
 }

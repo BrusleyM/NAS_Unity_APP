@@ -489,41 +489,34 @@ in this project are added via `AddComponent<T>()` in code rather than serialized
 the Inspector, so this specifically matters for anything that *is* Inspector-wired
 (e.g. `ParentPageController`'s `VisualTreeAsset` fields).
 
-## Tigris storage
+## Tigris storage (3D models)
 
-`GameManager` owns an `IStorageService` (`DevStorageService`) for downloading 3D models by string key
-(`DownloadModel`, etc.) - for **3D AR assets only**, not 2D catalog thumbnails. Uploading is not done from the app or
-the Editor any more: use `NAS_Backend/tools/tigris-upload-model.sh` (see `NAS_Backend/docs/STORAGE.md`).
-The old in-Editor uploader (`TigrisStorageManager`), the AssetBundle experiment (`AssetBundleTest`, the `AssetBundles/`
-folder) and the "asset manager" object in the AR scene were deleted (11 Oct 2026).
+**The app holds no storage credentials.** To show a car, `SelectedCarModelLoader` calls
+`GameManager.DownloadModel(vehicleId)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
+returns a short-lived pre-signed link for exactly that vehicle's file, (2) a plain `UnityWebRequest` fetches the file from
+the link. The API signs with the environment's read-only Tigris key, which lives in the API host's settings
+(`Storage__*`), never in this repo or the build. Which bucket is used follows from which API the app talks to
+(`CurrentEnvironment`), so there is no storage config in the app at all. Full convention, key handling and the
+backend endpoint: `NAS_Backend/docs/STORAGE.md`. For **3D AR assets only**, not 2D catalog thumbnails.
 
-**Driving a `Task`-returning call (a download, say) from an Editor script via `execute_code`-style reflection:** never
-block on it with `.GetAwaiter().GetResult()` in a loop (it deadlocked Unity's main thread once). Start it from a
-background thread (`Task.Run`) or a coroutine and check completion in a later call. A backgrounded Editor also pauses
-Play mode's main loop, so a task started on the main thread may not finish until the Editor is focused.
+Uploading is not done from the app or the Editor: use `NAS_Backend/tools/tigris-upload-model.sh`.
+A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
+refuses any other key on a vehicle. A vehicle with no key, an inactive vehicle, or an API without storage settings
+(`503 storage_not_configured`) makes the download fail, and the loader falls back to the placeholder car.
+
+Deleted (11 Oct 2026): the AWS SDK plugin, `IStorageService`/`DevStorageService`/`DevStorageConfig`, `StoragePolicy` and the
+per-environment storage config assets (they would have embedded a key in every build), the in-Editor uploader
+(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. `_useProduction` on
+`GameManager` is unused (kept so the scene's serialized data is untouched).
 
 **Reaching Tigris from a terminal:** the buckets live in your Fly.io account. `fly auth login` (opens the browser), then
 `fly storage list` / `fly storage dashboard <bucket>` to manage buckets and create access keys. For copying files use the
 AWS CLI with a Tigris key: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3=https://fly.storage.tigris.dev`,
 `AWS_REGION=auto`, then `aws s3 ls s3://nas-showroom-dev/`. Keys stay in your shell, never in git.
 
-`vehicle_model.tigris_model_key` (backend, nullable `varchar(200)`) is where each row's Tigris object key lives - see
-"Vehicle catalog: real 3D models" above and the one-bucket-per-environment section below.
-
-### Tigris: one bucket per environment (done; `NAS_Backend/docs/STORAGE.md` is the full convention)
-
-`GameManager.InitializeStorage()` picks the storage config from the **effective app environment**, the same single
-source of truth as the API address: `StoragePolicy.ConfigResourcePath(CurrentEnvironment)` (pure logic, unit-tested).
-Local / ApiDomain / ApiIp -> `Resources/Config/DevStorageConfig` (bucket `nas-showroom-dev`), Staging ->
-`StagingStorageConfig` (`nas-showroom-staging`), Production -> `ProductionStorageConfig` (`nas-showroom-production`,
-not created yet). A missing asset or an empty key is a loud error and downloads nothing (the loader falls back to the
-placeholder car); there is deliberately **no fallback to the dev bucket**, because database ids differ per environment.
-All three assets use the one `DevStorageConfig` script (the name is historical). `_useProduction` is unused.
-
-A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
-refuses any other key on a vehicle. **Still to do by hand:** the app should carry a *read-only* Tigris key per
-environment (Tigris dashboard, role ReadOnly, that bucket only). The dev asset still holds the original read/write key
-and the staging/production assets have no key yet; replace the dev key and rotate the old one. (The old Cognito-style `ProdStorageConfig`/`ProdStorageService` leftovers were deleted.)
+**Testing a download from an Editor script:** never block on a `Task` with `.GetAwaiter().GetResult()` (it deadlocked
+Unity's main thread once); start it and check completion in a later call. `ModelDownloader` uses `UnityWebRequest`, so it
+needs the main loop running (Play mode; `runInBackground` is on in this project).
 
 ## Design reference
 
