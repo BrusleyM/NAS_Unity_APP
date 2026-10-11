@@ -1,0 +1,36 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/Drawer.uss"/>
+    <ui:VisualElement name="drawer-overlay" class="drawer-overlay">
+        <ui:VisualElement name="drawer-panel" class="drawer-panel drawer-panel--closed">
+            <ui:VisualElement class="drawer-profile">
+                <ui:VisualElement class="drawer-avatar">
+                    <ui:Label name="drawer-initials-label" text="?" class="drawer-avatar-label"/>
+                </ui:VisualElement>
+                <ui:VisualElement class="drawer-profile-text">
+                    <ui:Label name="drawer-name-label" text="" class="drawer-name"/>
+                    <ui:Label name="drawer-email-label" text="" class="drawer-email"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement name="drawer-dealership" class="drawer-dealership">
+                <ui:Label text="DEALERSHIP" class="drawer-section-label"/>
+                <ui:VisualElement class="drawer-dealership-row">
+                    <ui:Label name="drawer-dealership-label" text="" class="drawer-dealership-name"/>
+                    <ui:Button name="drawer-change-dealership-button" text="Change" class="drawer-change-button"/>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="drawer-items">
+                <ui:Button name="drawer-edit-profile-button" text="Edit Profile" class="drawer-item"/>
+                <ui:Button name="drawer-change-password-button" text="Change Password" class="drawer-item"/>
+                <ui:Button name="drawer-privacy-button" text="Privacy" class="drawer-item"/>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="drawer-footer">
+                <ui:Button name="drawer-signout-button" text="Sign Out" class="drawer-signout-button"/>
+                <ui:Label name="drawer-version-label" text="" class="drawer-version"/>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="drawer-backdrop" class="drawer-backdrop drawer-backdrop--closed"/>
+    </ui:VisualElement>
+</ui:UXML>

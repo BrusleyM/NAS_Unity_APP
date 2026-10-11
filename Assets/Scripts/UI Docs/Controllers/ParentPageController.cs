@@ -17,6 +17,11 @@ namespace NAS.UI.Controllers
     public class ParentPageController : MonoBehaviour
     {
         private const string ArSceneName = "AR Scene";
+        // The side menu and its screens load from Resources (like the dealership list), so adding them needed no scene edit.
+        private const string DrawerUxmlPath = "UI/HamburgerDrawer";
+        private const string EditProfileUxmlPath = "UI/EditProfile";
+        private const string ChangePasswordUxmlPath = "UI/ChangePassword";
+        private const string PrivacyUxmlPath = "UI/Privacy";
 
         [SerializeField] private VisualTreeAsset _splashCardUxml;
         [SerializeField] private VisualTreeAsset _loginCardUxml;
@@ -98,6 +103,12 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<SplashDismissedEvent>(OnSplashDismissed);
             EventBus.Subscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Subscribe<ReturnToCarSelectionRequestedEvent>(OnReturnToCarSelectionRequested);
+            EventBus.Subscribe<MenuRequestedEvent>(OnMenuRequested);
+            EventBus.Subscribe<EditProfileRequestedEvent>(OnEditProfileRequested);
+            EventBus.Subscribe<ChangePasswordRequestedEvent>(OnChangePasswordRequested);
+            EventBus.Subscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
+            EventBus.Subscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
+            EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
         }
 
         private void UnsubscribeFromFlowEvents()
@@ -111,6 +122,12 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<SplashDismissedEvent>(OnSplashDismissed);
             EventBus.Unsubscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Unsubscribe<ReturnToCarSelectionRequestedEvent>(OnReturnToCarSelectionRequested);
+            EventBus.Unsubscribe<MenuRequestedEvent>(OnMenuRequested);
+            EventBus.Unsubscribe<EditProfileRequestedEvent>(OnEditProfileRequested);
+            EventBus.Unsubscribe<ChangePasswordRequestedEvent>(OnChangePasswordRequested);
+            EventBus.Unsubscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
+            EventBus.Unsubscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
+            EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
         }
 
         // Subscribed to GameManager's SessionAuthenticatedEvent/SessionCarSelectedEvent,
@@ -174,6 +191,18 @@ namespace NAS.UI.Controllers
         // existing ShowCarSelectionScreen() card swap, same as every other
         // navigation this router handles.
         private void OnReturnToCarSelectionRequested(ReturnToCarSelectionRequestedEvent evt) => ShowCarSelectionScreen();
+
+        // ---- Side menu and the screens it opens ---------------------------------------------------
+        // The menu is an overlay on top of whatever card is showing (today only Car Selection opens it); the
+        // three screens it leads to are ordinary cards, and finishing any of them goes back to Car Selection,
+        // where the menu was opened from. Signing out is announced by LogoutRequestedEvent but navigated on
+        // SessionEndedEvent, which GameManager publishes only after it has cleared the session.
+        private void OnMenuRequested(MenuRequestedEvent evt) => ShowMenuDrawer();
+        private void OnEditProfileRequested(EditProfileRequestedEvent evt) => ShowProfileScreen(EditProfileUxmlPath, ScreenNames.EditProfile, typeof(EditProfileController));
+        private void OnChangePasswordRequested(ChangePasswordRequestedEvent evt) => ShowProfileScreen(ChangePasswordUxmlPath, ScreenNames.ChangePassword, typeof(ChangePasswordController));
+        private void OnPrivacyRequested(PrivacyRequestedEvent evt) => ShowProfileScreen(PrivacyUxmlPath, ScreenNames.Privacy, typeof(PrivacyController));
+        private void OnCloseProfileScreenRequested(CloseProfileScreenRequestedEvent evt) => ShowCarSelectionScreen();
+        private void OnSessionEnded(SessionEndedEvent evt) => ShowLoginCard();
 
         // AR Scene is never unloaded (see OnCarSelected above), so this is
         // the only way back to a Main App card after the first AR visit -
@@ -264,6 +293,42 @@ namespace NAS.UI.Controllers
             EventBus.Publish(new ScreenShownEvent(ScreenNames.CarSelection));
         }
 
+        public void ShowMenuDrawer()
+        {
+            if (GetComponent<HamburgerDrawerController>() != null) return; // already open
+            var uxml = Resources.Load<VisualTreeAsset>(DrawerUxmlPath);
+            if (uxml == null)
+            {
+                Debug.LogError($"Menu UXML not found (Resources/{DrawerUxmlPath}).");
+                return;
+            }
+
+            // On the document root, above the card container, so it covers the whole screen.
+            var overlay = uxml.Instantiate();
+            overlay.style.position = Position.Absolute;
+            overlay.style.left = 0;
+            overlay.style.top = 0;
+            overlay.style.right = 0;
+            overlay.style.bottom = 0;
+            _uiDocument.rootVisualElement.Add(overlay);
+            gameObject.AddComponent<HamburgerDrawerController>();
+        }
+
+        private void ShowProfileScreen(string uxmlPath, string screenName, System.Type controllerType)
+        {
+            var uxml = Resources.Load<VisualTreeAsset>(uxmlPath);
+            if (uxml == null)
+            {
+                Debug.LogError($"Screen UXML not found (Resources/{uxmlPath}).");
+                return;
+            }
+            _cardContainer.Clear();
+            RemoveCardControllers();
+            uxml.CloneTree(_cardContainer);
+            gameObject.AddComponent(controllerType);
+            EventBus.Publish(new ScreenShownEvent(screenName));
+        }
+
         public void ShowEstimatorCard()
         {
             if (_estimatorCardUxml == null) return;
@@ -293,6 +358,19 @@ namespace NAS.UI.Controllers
 
             var estimatorCtrl = GetComponent<EstimatorCardController>();
             if (estimatorCtrl != null) Destroy(estimatorCtrl);
+
+            var editProfileCtrl = GetComponent<EditProfileController>();
+            if (editProfileCtrl != null) Destroy(editProfileCtrl);
+
+            var changePasswordCtrl = GetComponent<ChangePasswordController>();
+            if (changePasswordCtrl != null) Destroy(changePasswordCtrl);
+
+            var privacyCtrl = GetComponent<PrivacyController>();
+            if (privacyCtrl != null) Destroy(privacyCtrl);
+
+            // Any screen change closes the side menu (it may have just launched this change).
+            var drawerCtrl = GetComponent<HamburgerDrawerController>();
+            if (drawerCtrl != null) drawerCtrl.CloseImmediate();
         }
 
         private void OnDisable()

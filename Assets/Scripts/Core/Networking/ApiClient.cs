@@ -32,6 +32,13 @@ namespace NAS.Core.Networking
             Complete(request, completed);
         }
 
+        public IEnumerator PutJson<TRequest, TResponse>(string path, TRequest payload, Action<ApiResult<TResponse>> completed, string bearerToken = null)
+        {
+            var request = BuildRequest(path, UnityWebRequest.kHttpVerbPUT, JsonUtility.ToJson(payload), bearerToken);
+            yield return request.SendWebRequest();
+            Complete(request, completed);
+        }
+
         public IEnumerator GetJson<TResponse>(string path, Action<ApiResult<TResponse>> completed, string bearerToken = null)
         {
             var request = BuildRequest(path, UnityWebRequest.kHttpVerbGET, jsonBody: null, bearerToken);

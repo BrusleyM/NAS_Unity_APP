@@ -1,8 +1,6 @@
 using NAS.Core.Interfaces;
 using NAS.Core.Events;
 using NAS.Core.Networking;
-using NAS.Storage;
-using NAS.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -23,6 +21,7 @@ namespace NAS.Core
 
         [Header("Environment")]
         [Tooltip("If true, uses production Cognito settings; otherwise uses development basic credentials.")]
+        // Unused: kept only so the scene's serialized data is untouched.
         [SerializeField] private bool _useProduction = false;
 
         [Tooltip("Project-wide switch for which backend API endpoint to use. Local = http://localhost:5080 (safe default, always works). ApiDomain = https://api.nas.test:8443 via the optional local nginx proxy (NAS_Backend/nginx/README.md) - only works on a device that resolves api.nas.test (this Mac via /etc/hosts, or another device via dnsmasq's device-DNS override). ApiIp = same nginx proxy, addressed by raw LAN IP instead of the hostname - for a device on a network where nothing resolves api.nas.test (e.g. a phone hotspot without the dnsmasq override set up); update the ApiIp ApiSettings asset's URL when the LAN IP changes. Keep this at Local in anything committed/pushed, or teammates without that setup will have auth silently fail. AuthController reads this in Start() rather than owning its own toggle.")]
@@ -114,7 +113,7 @@ namespace NAS.Core
         // pattern as SelectedConfigurationId above.
         public bool CurrentArModelLoadSucceeded { get; set; } = false;
 
-        private IStorageService _storage;
+        private ModelDownloader _modelDownloader;
 
         // Times each screen the customer spends time on (see ScreenVisitTracker).
         // Visits can finish before there is anywhere to send them - splash, login
@@ -135,7 +134,7 @@ namespace NAS.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            InitializeStorage();
+            _modelDownloader = new ModelDownloader(this);
             _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
             // Subscribing here rather than in OnEnable() is deliberate: Unity
@@ -157,6 +156,8 @@ namespace NAS.Core
             EventBus.Subscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
+            EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
         }
 
         private void OnDisable()
@@ -167,6 +168,8 @@ namespace NAS.Core
             EventBus.Unsubscribe<ArModelLoadFailedEvent>(OnArModelLoadFailed);
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
+            EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
         }
 
         // OnApplicationPause(true) is the reliable "session ended" signal on
@@ -212,6 +215,35 @@ namespace NAS.Core
         }
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
+
+        // "Sign Out" from the menu. Order matters: the screen the customer is leaving and the telemetry session
+        // both belong to THIS login, so they are closed (and sent with the old session id and token) before the
+        // state is cleared. Stop() closes the current screen visit for good; the Login screen shown next starts a
+        // fresh one. SessionEndedEvent goes out only after the state is cleared (see its doc comment).
+        private void OnLogoutRequested(LogoutRequestedEvent evt)
+        {
+            _screens?.Stop();
+            EndTelemetrySession();
+
+            CurrentUser = null;
+            AccessToken = null;
+            SelectedCar = null;
+            SelectedDealership = null;
+            SelectedConfigurationId = 0;
+            ReturnToEstimator = false;
+            TelemetrySessionId = 0;
+            _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
+            _pendingVisits.Clear();         // visits waiting for a session id belonged to the one that just ended
+
+            EventBus.Publish(new SessionEndedEvent());
+        }
+
+        // The server saved a profile edit: keep the name the rest of the app reads (menu header) current.
+        private void OnProfileUpdated(ProfileUpdatedEvent evt)
+        {
+            if (CurrentUser == null) return;
+            CurrentUser.displayName = $"{evt.FirstName} {evt.LastName}".Trim();
+        }
 
         // Best-effort like all telemetry. Sent now if the session exists, otherwise
         // held (up to a cap) and sent when StartTelemetrySession gets its id.
@@ -423,54 +455,12 @@ namespace NAS.Core
             });
         }
 
-        private void InitializeStorage()
+        // The app holds no storage credentials: the API signs a short-lived link for the vehicle's model and the file is
+        // downloaded from that link (see ModelDownloader and NAS_Backend/docs/STORAGE.md).
+        public Task<Result<byte[]>> DownloadModel(int vehicleId)
         {
-            IStorageConfig config = Resources.Load<DevStorageConfig>("Config/DevStorageConfig");
-            if (config == null)
-            {
-                Debug.LogError("DevStorageConfig not found in Resources/Config/!");
-                return;
-            }
-
-            // _useProduction is currently dead - only affects the log line below, not
-            // which service gets constructed. Deliberately not fixed yet (no plan for
-            // multiple Tigris environments at this stage) - see .claude/CLAUDE.md's
-            // Tigris storage TODO for what to do here once AR integration starts:
-            // follow AuthController's single-enum pattern, not a second drifting bool.
-            _storage = new DevStorageService(config);
-
-            Debug.Log($"GameManager: Using {(_useProduction ? "PRODUCTION" : "DEVELOPMENT")} storage.");
-        }
-
-        // Public storage methods — unchanged.
-        public async Task<Result> UploadModel(string localFilePath, string modelKey)
-        {
-            if (_storage == null) return Result.Failure("Storage not initialized.");
-            return await _storage.UploadModelAsync(localFilePath, modelKey);
-        }
-
-        public async Task<Result<byte[]>> DownloadModel(string modelKey)
-        {
-            if (_storage == null) return Result<byte[]>.Failure("Storage not initialized.");
-            return await _storage.DownloadModelAsync(modelKey);
-        }
-
-        public async Task<Result<List<string>>> ListModels(string prefix = "")
-        {
-            if (_storage == null) return Result<List<string>>.Failure("Storage not initialized.");
-            return await _storage.ListModelsAsync(prefix);
-        }
-
-        public async Task<Result> UploadModels(List<string> localFilePaths, List<string> modelKeys)
-        {
-            if (_storage == null) return Result.Failure("Storage not initialized.");
-            return await _storage.UploadModelsAsync(localFilePaths, modelKeys);
-        }
-
-        public async Task<Result<List<(string Key, byte[] Data)>>> DownloadModels(List<string> modelKeys)
-        {
-            if (_storage == null) return Result<List<(string Key, byte[] Data)>>.Failure("Storage not initialized.");
-            return await _storage.DownloadModelsAsync(modelKeys);
+            if (string.IsNullOrEmpty(AccessToken)) return Task.FromResult(Result<byte[]>.Failure("Not signed in."));
+            return _modelDownloader.DownloadAsync(vehicleId, AccessToken);
         }
     }
 }
