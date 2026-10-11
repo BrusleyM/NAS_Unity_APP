@@ -28,3 +28,20 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet test CI/PureLogicTests --nologo
+
+  # The same check that used to be a separate "Workflow rules" workflow: every file in .github/workflows must follow
+  # NAS_Backend/docs/WORKFLOW_RULES.md. A few seconds, so it just runs with the rest of CI.
+  workflow-rules:
+    name: Check the workflow files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install pyyaml
+      - name: The checker itself still catches what it should
+        run: python .github/scripts/check_workflows.py --self-test
+      - name: Check this repo's workflows
+        run: python .github/scripts/check_workflows.py
