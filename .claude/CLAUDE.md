@@ -561,8 +561,7 @@ All three assets use the one `DevStorageConfig` script (the name is historical).
 A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
 refuses any other key on a vehicle. **Still to do by hand:** the app should carry a *read-only* Tigris key per
 environment (Tigris dashboard, role ReadOnly, that bucket only). The dev asset still holds the original read/write key
-and the staging/production assets have no key yet; replace the dev key and rotate the old one. The older `ProdStorageConfig`
-(Cognito-style, bucket `nas-prod`) is a leftover that nothing uses.
+and the staging/production assets have no key yet; replace the dev key and rotate the old one. (The old Cognito-style `ProdStorageConfig`/`ProdStorageService` leftovers were deleted.)
 
 ## Design reference
 
