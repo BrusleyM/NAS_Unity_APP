@@ -368,15 +368,6 @@ path also cleans up `_currentModelRoot` the same way `LoadSelectedCarAsync()`
 already does at its top, so a retry after a partial `InstantiateMainSceneAsync`
 failure doesn't leak.
 
-**`AssetBundleTest.cs`** (same "asset manager" GameObject) is a manual dev/test
-script demonstrating the (now-abandoned) AssetBundle download pattern — it's
-currently disabled (`m_Enabled: 0` in `AR Scene.unity`) because its `Start()`
-does a full upload/download/instantiate cycle every time the scene runs, which
-raced `GameManager.Instance` initialization and threw on a cold Play-mode entry
-straight into `AR Scene`. Left disabled; don't use it as a template for the
-glTFast-runtime path above, its download mechanics (`AssetBundle.LoadFromMemory`)
-don't apply there.
-
 ## AR viewport screen
 
 Design source: `ARViewportScreen` in `mobile-designs.tsx` (the code-bundle export
@@ -500,53 +491,24 @@ the Inspector, so this specifically matters for anything that *is* Inspector-wir
 
 ## Tigris storage
 
-`GameManager` owns an `IStorageService` (`DevStorageService`) for uploading/
-downloading 3D models by string key (`UploadModel`, `DownloadModel`, etc.) — this is
-for **3D AR assets only**, not 2D catalog thumbnails. There's also a second,
-separate manual-test path to the same bucket: `TigrisStorageManager` (its own S3
-client, own `UploadFileAsync`/`DownloadObjectAsync`) on the "asset manager"
-GameObject in `AR Scene.unity` — used directly (not through `IStorageService`) to
-upload the demo cars' corrected `.glb` files. **If you drive `TigrisStorageManager` (or any
-`Task`-returning upload/download call) from an Editor script via
-`execute_code`-style reflection, never block on it with
-`.GetAwaiter().GetResult()` in a loop** — this deadlocked Unity's main thread mid-
-session after the first of 11 uploads (killed the Editor's responsiveness to
-Stop/console entirely; only a lightweight ping-style check still answered). Fire
-each call without awaiting it in the same script invocation, or drive it through a
-coroutine, and verify completion out-of-band (e.g. list the bucket) instead of
-blocking in-process.
+`GameManager` owns an `IStorageService` (`DevStorageService`) for downloading 3D models by string key
+(`DownloadModel`, etc.) - for **3D AR assets only**, not 2D catalog thumbnails. Uploading is not done from the app or
+the Editor any more: use `NAS_Backend/tools/tigris-upload-model.sh` (see `NAS_Backend/docs/STORAGE.md`).
+The old in-Editor uploader (`TigrisStorageManager`), the AssetBundle experiment (`AssetBundleTest`, the `AssetBundles/`
+folder) and the "asset manager" object in the AR scene were deleted (11 Oct 2026).
 
-`vehicle_model.tigris_model_key` (backend, nullable `varchar(200)`) is where each
-row's Tigris object key lives — see "Vehicle catalog: real 3D models" above for the
-current state of that join (uploaded and recorded in the DB, not yet consumed by
-Unity for actual AR placement).
+**Driving a `Task`-returning call (a download, say) from an Editor script via `execute_code`-style reflection:** never
+block on it with `.GetAwaiter().GetResult()` in a loop (it deadlocked Unity's main thread once). Start it from a
+background thread (`Task.Run`) or a coroutine and check completion in a later call. A backgrounded Editor also pauses
+Play mode's main loop, so a task started on the main thread may not finish until the Editor is focused.
 
-### Tigris MCP server (for AI-driven asset pipeline work, e.g. Blender passes)
+**Reaching Tigris from a terminal:** the buckets live in your Fly.io account. `fly auth login` (opens the browser), then
+`fly storage list` / `fly storage dashboard <bucket>` to manage buckets and create access keys. For copying files use the
+AWS CLI with a Tigris key: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3=https://fly.storage.tigris.dev`,
+`AWS_REGION=auto`, then `aws s3 ls s3://nas-showroom-dev/`. Keys stay in your shell, never in git.
 
-`.mcp.json` at the repo root registers Tigris's official MCP server
-(`@tigrisdata/tigris-mcp-server` via `npx`) for direct bucket access from an
-agent — download/upload/list against `neo-ar-showroom` without going through
-Unity at all, which matters when a Unity-driven task (Editor MCP tools) is
-busy at the same time. The file is committed (references env var *names*
-only, never actual secret values, matching this workspace's preference for
-shareable/repo-based config over local-only setup — see
-`feedback_shareable_tooling` in the AI memory system).
-
-Each person running this needs three env vars set in their shell **before**
-launching Claude Code (edited into the config mid-session doesn't take
-effect until a full restart — Claude Code doesn't watch `.mcp.json` for
-changes):
-```
-export AWS_ACCESS_KEY_ID="<Tigris access key from DevStorageConfig.asset>"
-export AWS_SECRET_ACCESS_KEY="<Tigris secret key from DevStorageConfig.asset>"
-export AWS_ENDPOINT_URL_S3="https://fly.storage.tigris.dev"
-```
-Same credentials `DevStorageService`/`TigrisStorageManager` already use
-(`Assets/Resources/Config/DevStorageConfig.asset`) — this is a second way to
-reach the same bucket, not a separate account. `${VAR}` interpolation in
-`.mcp.json`'s `env` block is confirmed reliable on Claude Code **CLI**;
-known unreliable on the Desktop app (upstream bug) — if driving this from
-Desktop, set the values directly rather than relying on interpolation.
+`vehicle_model.tigris_model_key` (backend, nullable `varchar(200)`) is where each row's Tigris object key lives - see
+"Vehicle catalog: real 3D models" above and the one-bucket-per-environment section below.
 
 ### Tigris: one bucket per environment (done; `NAS_Backend/docs/STORAGE.md` is the full convention)
 
