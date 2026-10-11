@@ -1,0 +1,178 @@
+/* Side menu (hamburger drawer), opened from Car Selection. A full-screen overlay: the panel takes 80% of the
+   width, the rest is a dimmed backdrop that closes it. Palette matches the Figma design: panel
+   rgba(14,14,14,0.97), silver text, cyan accent, red sign-out. */
+
+.drawer-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: row;
+}
+
+.drawer-panel {
+    width: 80%;
+    flex-direction: column;
+    background-color: rgba(14, 14, 14, 0.97);
+    border-right-width: 1px;
+    border-right-color: rgba(192, 192, 192, 0.12);
+    /* Slides in from the left: the controller removes --closed one frame after attaching. */
+    transition-property: translate;
+    transition-duration: 0.22s;
+    transition-timing-function: ease-out;
+}
+
+.drawer-panel--closed {
+    translate: -100% 0;
+}
+
+.drawer-backdrop {
+    flex-grow: 1;
+    background-color: rgba(0, 0, 0, 0.55);
+    transition-property: opacity;
+    transition-duration: 0.22s;
+}
+
+.drawer-backdrop--closed {
+    opacity: 0;
+}
+
+/* Profile header: initials avatar, name, email. */
+.drawer-profile {
+    flex-direction: row;
+    align-items: center;
+    padding: 28px 20px 20px 20px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(192, 192, 192, 0.1);
+}
+
+.drawer-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 22px;
+    background-color: rgb(0, 160, 204);
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+.drawer-avatar-label {
+    color: rgb(0, 0, 0);
+    font-size: 15px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.drawer-profile-text {
+    flex-shrink: 1;
+}
+
+.drawer-name {
+    color: rgb(255, 255, 255);
+    font-size: 15px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.drawer-email {
+    margin-top: 2px;
+    color: rgba(192, 192, 192, 0.55);
+    font-size: 12px;
+    white-space: normal;
+}
+
+/* Current dealership with a "Change" action. */
+.drawer-dealership {
+    padding: 16px 20px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(192, 192, 192, 0.08);
+}
+
+.drawer-section-label {
+    margin-bottom: 6px;
+    color: rgba(192, 192, 192, 0.4);
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.drawer-dealership-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.drawer-dealership-name {
+    flex-shrink: 1;
+    margin-right: 10px;
+    color: rgb(192, 192, 192);
+    font-size: 14px;
+    white-space: normal;
+}
+
+.drawer-change-button {
+    margin: 0;
+    padding: 4px 10px;
+    flex-shrink: 0;
+    background-color: rgba(0, 212, 255, 0.12);
+    border-width: 1px;
+    border-color: rgba(0, 212, 255, 0.25);
+    border-radius: 4px;
+    color: rgb(0, 212, 255);
+    font-size: 12px;
+}
+
+.drawer-change-button:hover {
+    background-color: rgba(0, 212, 255, 0.2);
+}
+
+/* Menu rows (Edit Profile, Change Password, Privacy). */
+.drawer-items {
+    flex-grow: 1;
+    padding: 12px 0;
+}
+
+.drawer-item {
+    margin: 0;
+    padding: 14px 20px;
+    background-color: transparent;
+    border-width: 0;
+    border-radius: 0;
+    color: rgb(192, 192, 192);
+    font-size: 14px;
+    -unity-text-align: middle-left;
+}
+
+.drawer-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.drawer-footer {
+    padding: 4px 20px 24px 20px;
+    border-top-width: 1px;
+    border-top-color: rgba(192, 192, 192, 0.08);
+}
+
+.drawer-signout-button {
+    margin: 16px 0 0 0;
+    padding: 12px 0;
+    background-color: rgba(255, 60, 60, 0.1);
+    border-width: 1px;
+    border-color: rgba(255, 60, 60, 0.25);
+    border-radius: 12px;
+    color: rgb(255, 85, 85);
+    font-size: 14px;
+    -unity-text-align: middle-center;
+}
+
+.drawer-signout-button:hover {
+    background-color: rgba(255, 60, 60, 0.18);
+}
+
+.drawer-version {
+    margin-top: 16px;
+    color: rgba(192, 192, 192, 0.25);
+    font-size: 11px;
+    -unity-text-align: middle-center;
+}

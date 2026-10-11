@@ -36,6 +36,9 @@ namespace NAS.UI.Controllers
         private Button _testDriveButton;
         private int _testDriveRequestedForCarId;
         private bool _isRequestingTestDrive;
+        private bool _testDriveFailed;
+        private Label _rotationValueLabel;
+        private VisualElement _rotationFill;
         private IEstimatorApi _estimatorApi;
         private Button _sheetCloseButton;
         private VisualElement _sheetBackdrop;
@@ -134,6 +137,8 @@ namespace NAS.UI.Controllers
             _categoryPlaceholderText = root.Q<Label>("category-placeholder-text");
             _rotationSlider = root.Q<Slider>("rotation-slider");
             _rotationSliderRow = root.Q<VisualElement>("rotation-slider-row");
+            _rotationValueLabel = root.Q<Label>("rotation-value-label");
+            _rotationFill = AddSliderFill(_rotationSlider);
             _scaleHintLabel = root.Q<Label>("scale-hint-label");
             _verticalOffsetSlider = root.Q<Slider>("vertical-offset-slider");
             _verticalOffsetSliderColumn = root.Q<VisualElement>("vertical-offset-slider-column");
@@ -216,6 +221,7 @@ namespace NAS.UI.Controllers
             // relying on that side effect to reset the label/slider in sync
             // is more fragile than just doing it directly here.
             _rotationSlider?.SetValueWithoutNotify(0f);
+            RefreshRotationVisuals(0f);
             _verticalOffsetSlider?.SetValueWithoutNotify(0f);
             if (_scaleHintLabel != null)
                 _scaleHintLabel.text = "Pinch to scale [1:1]";
@@ -226,6 +232,7 @@ namespace NAS.UI.Controllers
             SetElementVisible(_rotationSliderRow, false);
             SetElementVisible(_verticalOffsetSliderColumn, false);
             SetElementVisible(_settingsButtonRow, false);
+            _testDriveFailed = false; // a failure belonged to the previous visit/car
             RefreshTestDriveButton();
 
             _colourChangeCount = 0;
@@ -238,8 +245,35 @@ namespace NAS.UI.Controllers
         private void OnRotationSliderGrabbed(PointerDownEvent evt) =>
             EventBus.Publish(new RotationSliderGrabbedEvent());
 
-        private void OnRotationSliderValueChanged(ChangeEvent<float> evt) =>
+        private void OnRotationSliderValueChanged(ChangeEvent<float> evt)
+        {
+            RefreshRotationVisuals(evt.newValue);
             EventBus.Publish(new RotationSliderChangedEvent(evt.newValue));
+        }
+
+        // The Figma slider fills with the accent colour up to the thumb and shows the angle beside it. UI Toolkit's
+        // Slider has no fill of its own, so one is added inside the track (under the thumb) and sized from the value.
+        private static VisualElement AddSliderFill(Slider slider)
+        {
+            var tracker = slider?.Q<VisualElement>(className: "unity-base-slider__tracker");
+            if (tracker == null) return null;
+            var fill = new VisualElement { pickingMode = PickingMode.Ignore };
+            fill.AddToClassList("slider-fill");
+            tracker.Insert(0, fill);
+            return fill;
+        }
+
+        private void RefreshRotationVisuals(float value)
+        {
+            if (_rotationValueLabel != null)
+                _rotationValueLabel.text = $"{Mathf.RoundToInt(value)}\u00B0";
+            if (_rotationFill != null && _rotationSlider != null)
+            {
+                var range = _rotationSlider.highValue - _rotationSlider.lowValue;
+                var percent = range > 0f ? (value - _rotationSlider.lowValue) / range * 100f : 0f;
+                _rotationFill.style.width = Length.Percent(Mathf.Clamp(percent, 0f, 100f));
+            }
+        }
 
         private void OnRotationSliderReleased(PointerUpEvent evt) =>
             EventBus.Publish(new RotationSliderReleasedEvent());
@@ -268,8 +302,15 @@ namespace NAS.UI.Controllers
             if (_testDriveButton == null) return;
             var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
             var done = selectedCar != null && selectedCar.id > 0 && selectedCar.id == _testDriveRequestedForCarId;
-            _testDriveButton.text = done ? "Test drive requested \u2713" : "Request test drive";
+            // Four states, as in the Figma design: default, sending, confirmed for this car, failed (stays tappable).
+            var failed = !done && !_isRequestingTestDrive && _testDriveFailed;
+            _testDriveButton.text = done ? "Test drive requested \u2713"
+                : _isRequestingTestDrive ? "Sending..."
+                : failed ? "Try again"
+                : "Request Test Drive";
             _testDriveButton.EnableInClassList("test-drive-button--done", done);
+            _testDriveButton.EnableInClassList("test-drive-button--sending", _isRequestingTestDrive);
+            _testDriveButton.EnableInClassList("test-drive-button--failed", failed);
             _testDriveButton.SetEnabled(!done && !_isRequestingTestDrive);
         }
 
@@ -293,6 +334,7 @@ namespace NAS.UI.Controllers
             if (resolved.Settings == null) return;
 
             _isRequestingTestDrive = true;
+            _testDriveFailed = false;
             RefreshTestDriveButton();
 
             _estimatorApi = new EstimatorApi(this, resolved.Settings, resolved.TrustAnyCertificate);
@@ -310,7 +352,10 @@ namespace NAS.UI.Controllers
                 if (result.Success)
                     _testDriveRequestedForCarId = carId;
                 else
+                {
+                    _testDriveFailed = true;
                     Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
+                }
                 RefreshTestDriveButton();
             });
         }

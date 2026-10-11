@@ -317,4 +317,48 @@ namespace NAS.Core.Events
 
     /// <summary>Raised once the async process from a matching LoadingStartedEvent finishes (success or failure) to hide the overlay again.</summary>
     public readonly struct LoadingFinishedEvent { }
+
+    // ---- Menu / profile --------------------------------------------------------------
+    // The hamburger menu opens from Car Selection. Like every other screen change, the controllers only
+    // announce what the customer asked for; ParentPageController decides what to show.
+
+    /// <summary>Raised by CarSelectionScreenController's hamburger button: show the side menu.</summary>
+    public readonly struct MenuRequestedEvent { }
+
+    /// <summary>Raised by the menu's "Edit Profile" row.</summary>
+    public readonly struct EditProfileRequestedEvent { }
+
+    /// <summary>Raised by the menu's "Change Password" row.</summary>
+    public readonly struct ChangePasswordRequestedEvent { }
+
+    /// <summary>Raised by the menu's "Privacy" row.</summary>
+    public readonly struct PrivacyRequestedEvent { }
+
+    /// <summary>Raised by Edit Profile / Change Password / Privacy when the customer is done (Back, or after a successful save).</summary>
+    public readonly struct CloseProfileScreenRequestedEvent { }
+
+    /// <summary>Raised after a profile edit was saved by the server, so whatever shows the customer's name can update.</summary>
+    public readonly struct ProfileUpdatedEvent
+    {
+        public readonly string FirstName;
+        public readonly string LastName;
+        public ProfileUpdatedEvent(string firstName, string lastName)
+        {
+            FirstName = firstName;
+            LastName = lastName;
+        }
+    }
+
+    /// <summary>
+    /// Raised by the menu's "Sign Out". Handled by AuthController (forgets the token) and GameManager (ends the
+    /// telemetry session and clears the session state). Navigation waits for SessionEndedEvent below.
+    /// </summary>
+    public readonly struct LogoutRequestedEvent { }
+
+    /// <summary>
+    /// Published by GameManager AFTER it has cleared CurrentUser/AccessToken/SelectedDealership/SelectedCar, same
+    /// pattern as SessionAuthenticatedEvent: anything reacting to a sign-out (ParentPageController showing Login)
+    /// is guaranteed to see the signed-out state.
+    /// </summary>
+    public readonly struct SessionEndedEvent { }
 }

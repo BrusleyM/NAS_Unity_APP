@@ -1,0 +1,104 @@
+/* Edit Profile, Change Password and Privacy (opened from the side menu). They reuse the form classes from
+   LoginScreen.uss (.input-group, .input-field, .field-label, .field-error, .form-error, .gradient-button) and add
+   only the screen frame: a top bar with Back, the scrollable content, and a footer with the action. */
+
+.profile-root {
+    flex-grow: 1;
+    width: 100%;
+    flex-direction: column;
+    padding: 6% 5% 24px 5%;
+}
+
+.profile-top-bar {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.profile-back-button {
+    margin: 0 12px 0 0;
+    padding: 6px 12px;
+    flex-direction: row;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.2);
+    border-radius: 8px;
+    color: rgb(192, 192, 192);
+    font-size: 12px;
+}
+
+.profile-back-button:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+    color: rgb(0, 212, 255);
+}
+
+.profile-title {
+    color: rgb(255, 255, 255);
+    font-size: 17px;
+    -unity-font-style: bold;
+}
+
+.profile-subtitle {
+    margin-top: 2px;
+    color: rgba(192, 192, 192, 0.55);
+    font-size: 12px;
+    white-space: normal;
+}
+
+.profile-scroll {
+    flex-grow: 1;
+}
+
+.profile-footer {
+    flex-shrink: 0;
+    padding-top: 12px;
+}
+
+/* The email is shown but cannot be edited: dimmed, no focus highlight. */
+.input-field--readonly .unity-text-field__input {
+    color: rgba(192, 192, 192, 0.5);
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: rgba(192, 192, 192, 0.15);
+}
+
+.field-hint {
+    margin-top: 4px;
+    align-self: flex-start;
+    color: rgba(192, 192, 192, 0.45);
+    font-size: 11px;
+    white-space: normal;
+}
+
+.form-success {
+    margin-bottom: 8px;
+    color: rgb(0, 200, 100);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+/* Privacy text sits on a glass card: the screen background is a busy image. */
+.privacy-card {
+    padding: 4px 16px 16px 16px;
+    background-color: rgba(14, 14, 14, 0.78);
+    border-width: 1px;
+    border-color: rgba(192, 192, 192, 0.15);
+    border-radius: 16px;
+}
+
+/* Privacy text. */
+.privacy-heading {
+    margin-top: 16px;
+    margin-bottom: 4px;
+    color: rgb(255, 255, 255);
+    font-size: 14px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+
+.privacy-text {
+    color: rgba(192, 192, 192, 0.8);
+    font-size: 13px;
+    white-space: normal;
+}
