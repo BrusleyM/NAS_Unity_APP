@@ -332,7 +332,7 @@ correction step. The working script bakes transforms via direct
 which has no operator/context/cache state to misbehave.
 
 **Now wired up:** each vehicle's corrected `.glb` is uploaded to Tigris under
-`carmodels/<key>.glb` (e.g. `carmodels/bmwm8demo.glb`), the DB's
+`dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (older notes below say `carmodels/<key>.glb`, the layout before 11 Oct 2026), the DB's
 `vehicle_model.tigris_model_key` column records which object belongs to which
 row, and `SelectedCarModelLoader`
 (`Assets/Scripts/Core/SelectedCarModelLoader.cs`, on the "ar man" GameObject
@@ -548,21 +548,21 @@ reach the same bucket, not a separate account. `${VAR}` interpolation in
 known unreliable on the Desktop app (upstream bug) — if driving this from
 Desktop, set the values directly rather than relying on interpolation.
 
-### TODO, not urgent — Tigris environment handling doesn't match Auth's pattern
+### Tigris: one bucket per environment (done; `NAS_Backend/docs/STORAGE.md` is the full convention)
 
-`GameManager._useProduction` (the other field under its `[Header("Environment")]`,
-alongside `_environment`/`AppEnvironment`) is currently **dead** — `InitializeStorage()`
-always constructs `DevStorageService` regardless of its value; the bool only
-feeds a `Debug.Log` line, so flipping it to `true` gets you a log claiming
-"Using PRODUCTION storage" while Dev storage silently keeps running underneath.
+`GameManager.InitializeStorage()` picks the storage config from the **effective app environment**, the same single
+source of truth as the API address: `StoragePolicy.ConfigResourcePath(CurrentEnvironment)` (pure logic, unit-tested).
+Local / ApiDomain / ApiIp -> `Resources/Config/DevStorageConfig` (bucket `nas-showroom-dev`), Staging ->
+`StagingStorageConfig` (`nas-showroom-staging`), Production -> `ProductionStorageConfig` (`nas-showroom-production`,
+not created yet). A missing asset or an empty key is a loud error and downloads nothing (the loader falls back to the
+placeholder car); there is deliberately **no fallback to the dev bucket**, because database ids differ per environment.
+All three assets use the one `DevStorageConfig` script (the name is historical). `_useProduction` is unused.
 
-**Deliberately not fixed now** — there's no plan for multiple Tigris storage
-environments at this stage of the project. Revisit this when AR integration
-starts (the AR placement step in the screen flow above, i.e. once vehicles
-actually need real downloaded 3D models rather than just placeholder testing).
-At that point, follow `AuthController`'s pattern: one enum on `GameManager`
-as the single source of truth, not a second independent bool that can drift
-(see the Auth section above for why that matters).
+A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
+refuses any other key on a vehicle. **Still to do by hand:** the app should carry a *read-only* Tigris key per
+environment (Tigris dashboard, role ReadOnly, that bucket only). The dev asset still holds the original read/write key
+and the staging/production assets have no key yet; replace the dev key and rotate the old one. The older `ProdStorageConfig`
+(Cognito-style, bucket `nas-prod`) is a leftover that nothing uses.
 
 ## Design reference
 

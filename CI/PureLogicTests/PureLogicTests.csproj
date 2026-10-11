@@ -18,9 +18,11 @@
     <Compile Include="../../Assets/Scripts/Core/ScreenVisitTracker.cs" />
     <Compile Include="../../Assets/Scripts/Core/AppEnvironment.cs" />
     <Compile Include="../../Assets/Scripts/Core/EnvironmentPolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Core/StoragePolicy.cs" />
     <Compile Include="../../Assets/Scripts/Core/ProfileValidation.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ScreenVisitTrackerTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/EnvironmentPolicyTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/StoragePolicyTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ProfileValidationTests.cs" />
   </ItemGroup>
 </Project>

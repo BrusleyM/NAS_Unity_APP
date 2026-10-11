@@ -14,6 +14,10 @@ namespace NAS.Configuration
         [SerializeField] private string _devServiceUrl = "https://fly.storage.tigris.dev";
         [SerializeField] private string _devBucketName;
 
+        // False for an environment whose key has not been put in yet; the app then logs an error and downloads nothing
+        // (it falls back to the placeholder car) instead of crashing on an empty key.
+        public bool HasCredentials => !string.IsNullOrWhiteSpace(_devAccessKey) && !string.IsNullOrWhiteSpace(_devSecretKey);
+
         public string ServiceUrl => _devServiceUrl;
         public string BucketName => _devBucketName;
 
