@@ -121,12 +121,10 @@ namespace NAS.Core
                 // reactivates it rather than cloning it - see
                 // RaycastPrefabIsLiveInstance), so the -1000 position only matters
                 // for the brief window while it's still active and being built.
-                // modelKey contains '/' (e.g. "carmodels/bmwm5demo.glb") - GameObject.Find()
-                // and Transform.Find() both treat '/' as a hierarchy path separator, not a
-                // literal character, so a raw modelKey in the name breaks any future
-                // name-based lookup of this object. Sanitize it here instead.
-                var safeModelKey = modelKey.Replace('/', '_');
-                var modelRoot = new GameObject("SelectedCarModel_" + safeModelKey);
+                // Named after the car, not the storage key: a key holds '/' (GameObject.Find and Transform.Find treat
+                // it as a hierarchy separator) and says nothing useful in the Hierarchy window. Nothing looks this
+                // object up by name.
+                var modelRoot = new GameObject("SelectedCarModel_" + selectedCar.modelName);
                 modelRoot.transform.position = new Vector3(0f, -1000f, 0f);
                 _currentModelRoot = modelRoot;
 
