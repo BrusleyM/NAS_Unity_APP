@@ -141,6 +141,15 @@ namespace NAS.Core
                     return;
                 }
 
+                // Show the default option of each set (wheels A, interior A) and hide the alternatives, otherwise the
+                // car renders every wheel set and every interior at once. Done before the discovery and the shadow
+                // below so neither sees the hidden parts. Cars without variant nodes are untouched.
+                foreach (var node in modelRoot.GetComponentsInChildren<Transform>(true))
+                {
+                    if (ModelVariantRules.IsHiddenByDefault(node.name))
+                        node.gameObject.SetActive(false);
+                }
+
                 // Discover the car's Body/Door_*/Wheels/etc. renderers once
                 // here - CarPaintController (and future consumers like a
                 // door-open animation) read this instead of re-deriving
