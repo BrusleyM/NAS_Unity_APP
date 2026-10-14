@@ -62,6 +62,7 @@ namespace NAS.UI.Controllers
             }
 
             EventBus.Subscribe<AuthFailedEvent>(OnAuthFailed);
+            EventBus.Subscribe<SessionExpiredEvent>(OnSessionExpired);
         }
 
         private void OnLoginClicked()
@@ -131,6 +132,12 @@ namespace NAS.UI.Controllers
             }
         }
 
+        private void OnSessionExpired(SessionExpiredEvent evt)
+        {
+            SetSubmitting(false);
+            SetFormError(evt.Message);
+        }
+
         private void ClearAllErrors()
         {
             SetFormError(null);
@@ -171,6 +178,7 @@ namespace NAS.UI.Controllers
                 _passwordToggleButton.clicked -= TogglePasswordVisibility;
 
             EventBus.Unsubscribe<AuthFailedEvent>(OnAuthFailed);
+            EventBus.Unsubscribe<SessionExpiredEvent>(OnSessionExpired);
         }
     }
 }

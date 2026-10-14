@@ -202,7 +202,12 @@ namespace NAS.UI.Controllers
         private void OnChangePasswordRequested(ChangePasswordRequestedEvent evt) => ShowProfileScreen(ChangePasswordUxmlPath, ScreenNames.ChangePassword, typeof(ChangePasswordController));
         private void OnPrivacyRequested(PrivacyRequestedEvent evt) => ShowProfileScreen(PrivacyUxmlPath, ScreenNames.Privacy, typeof(PrivacyController));
         private void OnCloseProfileScreenRequested(CloseProfileScreenRequestedEvent evt) => ShowCarSelectionScreen();
-        private void OnSessionEnded(SessionEndedEvent evt) => ShowLoginCard();
+        // ShowUi() first: a sign-out can happen while the AR screen is up (an expired login), when this screen's UI is hidden.
+        private void OnSessionEnded(SessionEndedEvent evt)
+        {
+            ShowUi();
+            ShowLoginCard();
+        }
 
         // AR Scene is never unloaded (see OnCarSelected above), so this is
         // the only way back to a Main App card after the first AR visit -
