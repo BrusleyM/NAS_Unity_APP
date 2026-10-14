@@ -19,10 +19,12 @@
     <Compile Include="../../Assets/Scripts/Core/AppEnvironment.cs" />
     <Compile Include="../../Assets/Scripts/Core/EnvironmentPolicy.cs" />
     <Compile Include="../../Assets/Scripts/Core/ProfileValidation.cs" />
+    <Compile Include="../../Assets/Scripts/Core/Motion/Easing.cs" />
     <Compile Include="../../Assets/Scripts/Core/ModelVariantRules.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ScreenVisitTrackerTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/EnvironmentPolicyTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ProfileValidationTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/EasingTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ModelVariantRulesTests.cs" />
   </ItemGroup>
 </Project>

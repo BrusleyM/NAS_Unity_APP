@@ -1,0 +1,23 @@
+/* Shared motion for every screen, loaded onto the UI root by UiMotion.ApplyStyles. Code-driven motion (entrances,
+   staggers, shakes) lives in Scripts/Core/Motion/UiMotion.cs; this is only what needs no code. */
+
+Button {
+    transition-property: scale, opacity;
+    transition-duration: 0.14s, 0.18s;
+    transition-timing-function: ease-out-cubic;
+}
+
+/* A press sinks a little and springs back on release (the transition above runs both ways). */
+Button:active {
+    scale: 0.965 0.965;
+}
+
+Button:disabled {
+    opacity: 0.55;
+}
+
+TextField {
+    transition-property: opacity;
+    transition-duration: 0.18s;
+    transition-timing-function: ease-out-cubic;
+}

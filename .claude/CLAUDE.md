@@ -136,6 +136,27 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
 - The Privacy screen's text is a plain-language summary of what the app records today, written from the code. It makes no
   promises about retention or deletion - review it before release.
 
+## UI motion (`Assets/Scripts/Core/Motion`, assembly `NAS.Core.Motion`)
+
+No third-party tween package. Two layers:
+
+- **USS transitions** (`Resources/UI/Motion.uss`, loaded onto the UI root by `ParentPageController` via `UiMotion.ApplyStyles`): button press
+  (`Button:active` scales to 0.965 and springs back), disabled fade, anything that needs no code.
+- **`UiMotion`** (UI Toolkit elements) and **`TransformMotion`** (3D objects) for sequenced / data-driven motion: `Enter`, `Stagger`, `Pop`,
+  `Shake`, `FadeIn/Out`, `CountUp`, `Spin`, `Run` (custom). Curves are in `Easing` (pure maths, unit-tested; every curve ends exactly on 1).
+  Rules every helper follows: the start state is set immediately and the end state applied exactly; one running tween per element and
+  channel; leaving the panel cancels an element's tweens; real time, not `Time.timeScale`.
+
+How screens use it: the router (`ParentPageController.SwapCard`, the single place a screen replaces another) calls `UiMotion.Reveal`:
+UXML parts tagged with the USS class `motion-item` fade/rise in one after another (stagger capped at about half a second), a screen with none
+simply enters as a whole. Add the class to a UXML element to opt it in. Lists built in code stagger themselves (dealership cards); thumbnails
+fade in when the real picture arrives; form errors rise in and the field shakes (`FormHelpers`); the Customize sheet slides, the loading
+overlay fades, the confirmation check pops, a placed car pops in (`TransformMotion.PopIn`); spinners are `UiMotion.Spin` (one implementation,
+it replaced a copy in each of six controllers).
+
+**Reduce motion** is a developer switch only (`NAS > Dev > Reduce UI Motion` in the Editor menu, remembered in PlayerPrefs; `MotionSettings`
+ignores it in release builds). It makes every animation jump to its end state, which is what tests and screenshots want. Spinners ignore it.
+
 ## Telemetry events that feed the ML model
 
 `GameManager` owns sending telemetry events (`LogActivityEvent`, best-effort, skipped until
@@ -272,8 +293,7 @@ verify per-file if it matters for what you're doing.
   `justify-content:center` relies on to keep the current card centered.
 - `CarSelectionScreenController` (`Controllers/`) drives the drag: `PointerDown` (capture pointer) →
   `PointerMove` (clamped `translate` on `_carsContainer`, follows the finger 1:1) →
-  `PointerUp` (25%-of-viewport-width threshold decides commit vs. snap back;
-  either way, snaps `translate` back to `0` — no easing, this is intentional).
+  `PointerUp` (25%-of-viewport-width threshold decides commit vs. snap back). The strip is then eased home by `SettleCarousel` (a committed swipe or a tap on a side card starts one slot over and eases in; a swipe that falls short springs back) - see "UI motion" below.
 - `CarData` (`Assets/Scripts/Core/Models/CarData.cs`) is a `ScriptableObject`, but
   there are no more hand-authored `.asset` fixtures — `Assets/Resources/Cars/` is
   gone. Every `CarData` instance is created at runtime by

@@ -12,20 +12,20 @@
 
         <ui:ScrollView class="profile-scroll" mode="Vertical">
             <ui:VisualElement class="privacy-card">
-            <ui:Label text="Your account" class="privacy-heading"/>
-            <ui:Label text="We keep the name, email address and cell number you registered with. You can change your name and cell number under Edit Profile." class="privacy-text"/>
+            <ui:Label text="Your account" class="privacy-heading motion-item"/>
+            <ui:Label text="We keep the name, email address and cell number you registered with. You can change your name and cell number under Edit Profile." class="privacy-text motion-item"/>
 
-            <ui:Label text="How you use the app" class="privacy-heading"/>
-            <ui:Label text="To help the dealership understand what you are interested in, the app records which screens you visit and for how long, which cars you look at and customise, what you do in the AR view (placing, moving, rotating and scaling a car), and the numbers you try in the finance estimator. It also records basic technical details: your device model, platform and app version." class="privacy-text"/>
+            <ui:Label text="How you use the app" class="privacy-heading motion-item"/>
+            <ui:Label text="To help the dealership understand what you are interested in, the app records which screens you visit and for how long, which cars you look at and customise, what you do in the AR view (placing, moving, rotating and scaling a car), and the numbers you try in the finance estimator. It also records basic technical details: your device model, platform and app version." class="privacy-text motion-item"/>
 
-            <ui:Label text="What you send to a dealership" class="privacy-heading"/>
-            <ui:Label text="When you tap Send to Dealer or Request test drive, your contact details, the car and your estimate are sent to the dealership you chose, and its staff can see them. Your activity in the app is also visible to that dealership." class="privacy-text"/>
+            <ui:Label text="What you send to a dealership" class="privacy-heading motion-item"/>
+            <ui:Label text="When you tap Send to Dealer or Request test drive, your contact details, the car and your estimate are sent to the dealership you chose, and its staff can see them. Your activity in the app is also visible to that dealership." class="privacy-text motion-item"/>
 
-            <ui:Label text="Camera and location" class="privacy-heading"/>
-            <ui:Label text="The AR view uses your camera on the device to place the car in your space. The app does not upload camera images, and it does not collect your location." class="privacy-text"/>
+            <ui:Label text="Camera and location" class="privacy-heading motion-item"/>
+            <ui:Label text="The AR view uses your camera on the device to place the car in your space. The app does not upload camera images, and it does not collect your location." class="privacy-text motion-item"/>
 
-            <ui:Label text="Questions" class="privacy-heading"/>
-            <ui:Label text="Ask the dealership you are dealing with if you want to know more about the information it holds." class="privacy-text"/>
+            <ui:Label text="Questions" class="privacy-heading motion-item"/>
+            <ui:Label text="Ask the dealership you are dealing with if you want to know more about the information it holds." class="privacy-text motion-item"/>
             </ui:VisualElement>
         </ui:ScrollView>
     </ui:VisualElement>
