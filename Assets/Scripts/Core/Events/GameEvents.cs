@@ -361,4 +361,14 @@ namespace NAS.Core.Events
     /// is guaranteed to see the signed-out state.
     /// </summary>
     public readonly struct SessionEndedEvent { }
+
+    /// <summary>
+    /// Published by GameManager right after SessionEndedEvent when the sign-out was not the customer's choice: the server
+    /// rejected the login token (expired). The Login screen shows <see cref="Message"/> so the customer knows why.
+    /// </summary>
+    public readonly struct SessionExpiredEvent
+    {
+        public readonly string Message;
+        public SessionExpiredEvent(string message) { Message = message; }
+    }
 }
