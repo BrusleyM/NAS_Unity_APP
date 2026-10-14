@@ -121,12 +121,10 @@ namespace NAS.Core
                 // reactivates it rather than cloning it - see
                 // RaycastPrefabIsLiveInstance), so the -1000 position only matters
                 // for the brief window while it's still active and being built.
-                // modelKey contains '/' (e.g. "carmodels/bmwm5demo.glb") - GameObject.Find()
-                // and Transform.Find() both treat '/' as a hierarchy path separator, not a
-                // literal character, so a raw modelKey in the name breaks any future
-                // name-based lookup of this object. Sanitize it here instead.
-                var safeModelKey = modelKey.Replace('/', '_');
-                var modelRoot = new GameObject("SelectedCarModel_" + safeModelKey);
+                // Named after the car, not the storage key: a key holds '/' (GameObject.Find and Transform.Find treat
+                // it as a hierarchy separator) and says nothing useful in the Hierarchy window. Nothing looks this
+                // object up by name.
+                var modelRoot = new GameObject("SelectedCarModel_" + selectedCar.modelName);
                 modelRoot.transform.position = new Vector3(0f, -1000f, 0f);
                 _currentModelRoot = modelRoot;
 
@@ -141,6 +139,15 @@ namespace NAS.Core
                     EventBus.Publish(new ArModelLoadFailedEvent("instantiate"));
                     _objectPlacer.EnablePlacement();
                     return;
+                }
+
+                // Show the default option of each set (wheels A, interior A) and hide the alternatives, otherwise the
+                // car renders every wheel set and every interior at once. Done before the discovery and the shadow
+                // below so neither sees the hidden parts. Cars without variant nodes are untouched.
+                foreach (var node in modelRoot.GetComponentsInChildren<Transform>(true))
+                {
+                    if (ModelVariantRules.IsHiddenByDefault(node.name))
+                        node.gameObject.SetActive(false);
                 }
 
                 // Discover the car's Body/Door_*/Wheels/etc. renderers once
