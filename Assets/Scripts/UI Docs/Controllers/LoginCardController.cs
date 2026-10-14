@@ -12,8 +12,6 @@ namespace NAS.UI.Controllers
     /// </summary>
     public class LoginCardController : MonoBehaviour
     {
-        private const float SpinDegreesPerSecond = 220f; // Matches LoadingOverlayController's spinner speed
-
         [SerializeField] private TextField _emailField;
         [SerializeField] private TextField _passwordField;
         [SerializeField] private Button _loginButton;
@@ -25,7 +23,6 @@ namespace NAS.UI.Controllers
         [SerializeField] private Label _passwordErrorLabel;
         [SerializeField] private Button _passwordToggleButton;
 
-        private float _spinAngle;
         private bool _isSubmitting;
 
         private void OnEnable()
@@ -80,16 +77,7 @@ namespace NAS.UI.Controllers
         private void SetSubmitting(bool submitting)
         {
             _isSubmitting = submitting;
-            if (_loginButton != null) _loginButton.SetEnabled(!submitting);
-            if (_loginButtonLabel != null) _loginButtonLabel.style.display = submitting ? DisplayStyle.None : DisplayStyle.Flex;
-            if (_loginButtonSpinner != null) _loginButtonSpinner.style.display = submitting ? DisplayStyle.Flex : DisplayStyle.None;
-        }
-
-        private void Update()
-        {
-            if (!_isSubmitting || _loginButtonSpinner == null) return;
-            _spinAngle = (_spinAngle + SpinDegreesPerSecond * Time.deltaTime) % 360f;
-            _loginButtonSpinner.style.rotate = new StyleRotate(new Rotate(new Angle(_spinAngle, AngleUnit.Degree)));
+            FormHelpers.SetSubmitting(_loginButton, _loginButtonLabel, _loginButtonSpinner, submitting);
         }
 
         private void OnLinkClicked(PointerUpLinkTagEvent evt)
@@ -138,29 +126,10 @@ namespace NAS.UI.Controllers
             SetFieldError(_passwordField, _passwordErrorLabel, null);
         }
 
-        private static void SetFieldError(TextField field, Label errorLabel, string message)
-        {
-            bool hasError = !string.IsNullOrEmpty(message);
+        private static void SetFieldError(TextField field, Label errorLabel, string message) =>
+            FormHelpers.SetFieldError(field, errorLabel, message);
 
-            if (field != null)
-            {
-                if (hasError) field.AddToClassList("input-field--error");
-                else field.RemoveFromClassList("input-field--error");
-            }
-
-            if (errorLabel != null)
-            {
-                errorLabel.text = message ?? string.Empty;
-                errorLabel.style.display = hasError ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-        }
-
-        private void SetFormError(string message)
-        {
-            if (_errorLabel == null) return;
-            _errorLabel.text = message ?? string.Empty;
-            _errorLabel.style.display = string.IsNullOrEmpty(message) ? DisplayStyle.None : DisplayStyle.Flex;
-        }
+        private void SetFormError(string message) => FormHelpers.SetMessage(_errorLabel, message);
 
         private void OnDisable()
         {

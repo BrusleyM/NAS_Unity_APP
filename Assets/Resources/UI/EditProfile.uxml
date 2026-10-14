@@ -6,34 +6,34 @@
             <ui:Button name="profile-back-button" text="&#8249; Back" class="profile-back-button"/>
             <ui:VisualElement>
                 <ui:Label text="Edit Profile" class="profile-title"/>
-                <ui:Label text="Your details are shared with the dealership you contact." class="profile-subtitle"/>
+                <ui:Label text="Your details are shared with the dealership you contact." class="profile-subtitle motion-item"/>
             </ui:VisualElement>
         </ui:VisualElement>
 
         <ui:ScrollView class="profile-scroll" mode="Vertical">
-            <ui:VisualElement class="input-group">
+            <ui:VisualElement class="input-group motion-item">
                 <ui:VisualElement class="field-label-row"><ui:Label text="First name" class="field-label"/></ui:VisualElement>
                 <ui:TextField name="first-name-field" placeholder="First name" class="input-field"/>
                 <ui:Label name="first-name-error-label" class="field-error" style="display: none;"/>
             </ui:VisualElement>
-            <ui:VisualElement class="input-group">
+            <ui:VisualElement class="input-group motion-item">
                 <ui:VisualElement class="field-label-row"><ui:Label text="Last name" class="field-label"/></ui:VisualElement>
                 <ui:TextField name="last-name-field" placeholder="Last name" class="input-field"/>
                 <ui:Label name="last-name-error-label" class="field-error" style="display: none;"/>
             </ui:VisualElement>
-            <ui:VisualElement class="input-group">
+            <ui:VisualElement class="input-group motion-item">
                 <ui:VisualElement class="field-label-row"><ui:Label text="Cell number" class="field-label"/></ui:VisualElement>
                 <ui:TextField name="cell-number-field" placeholder="+27 82 123 4567" class="input-field"/>
                 <ui:Label name="cell-number-error-label" class="field-error" style="display: none;"/>
             </ui:VisualElement>
-            <ui:VisualElement class="input-group">
+            <ui:VisualElement class="input-group motion-item">
                 <ui:VisualElement class="field-label-row"><ui:Label text="Email" class="field-label"/></ui:VisualElement>
                 <ui:TextField name="email-field" class="input-field input-field--readonly" is-readonly="true"/>
                 <ui:Label text="Your email is your sign-in and can't be changed here." class="field-hint"/>
             </ui:VisualElement>
         </ui:ScrollView>
 
-        <ui:VisualElement class="profile-footer">
+        <ui:VisualElement class="profile-footer motion-item">
             <ui:Label name="profile-status-label" class="form-success" style="display: none;"/>
             <ui:Label name="profile-error-label" class="form-error" style="display: none;"/>
             <ui:Button name="profile-save-button" class="gradient-button" style="margin-top: 8px;">

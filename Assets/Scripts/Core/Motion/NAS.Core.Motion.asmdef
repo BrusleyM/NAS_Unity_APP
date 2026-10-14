@@ -1,0 +1,14 @@
+{
+    "name": "NAS.Core.Motion",
+    "rootNamespace": "NAS.Core.Motion",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

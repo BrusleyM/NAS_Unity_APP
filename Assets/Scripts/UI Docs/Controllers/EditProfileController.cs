@@ -25,7 +25,6 @@ namespace NAS.UI.Controllers
         private ICustomerProfileApi _api;
         private bool _loaded;
         private bool _busy;
-        private float _spinAngle;
 
         private void OnEnable()
         {
@@ -58,11 +57,6 @@ namespace NAS.UI.Controllers
         {
             if (_backButton != null) _backButton.clicked -= OnBackClicked;
             if (_saveButton != null) _saveButton.clicked -= OnSaveClicked;
-        }
-
-        private void Update()
-        {
-            if (_busy) _spinAngle = FormHelpers.Spin(_spinner, _spinAngle, Time.deltaTime);
         }
 
         private bool TryGetApi(out string accessToken)

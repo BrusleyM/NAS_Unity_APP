@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 using NAS.Core.Interfaces;
 using NAS.Core.Networking;
 using System.Collections;
@@ -519,6 +520,7 @@ namespace NAS.Core
                         _currentPlacedInstance = placedInstance;
 
                         EventBus.Publish(new CarPlacedEvent(placedInstance));
+                        TransformMotion.PopIn(placedInstance.transform);   // settles in instead of appearing at full size
                         _placementCount++;
 
                         if (_preventMultiplePerPlane)

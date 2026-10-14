@@ -1,4 +1,5 @@
 using System;
+using NAS.Core.Motion;
 using UnityEngine;
 using UnityEngine.UIElements;
 using System.Collections.Generic;
@@ -117,6 +118,7 @@ namespace NAS.UI.Controllers
                 _menuButton.clicked += OnMenuClicked;
 
             _pager = new CarPager(_carsContainer, _carCardTemplate, RequestCarThumbnail);
+            _pager.IndexChanged += OnPagerIndexChanged;
 
             PopulateDropdown();
 
@@ -243,6 +245,8 @@ namespace NAS.UI.Controllers
                 PositionDropdownMenu();
             _dropdownMenu.style.display = _isDropdownOpen ? DisplayStyle.Flex : DisplayStyle.None;
             if (_isDropdownOpen)
+                UiMotion.Enter(_dropdownMenu, 0f, 8f, 0.18f);
+            if (_isDropdownOpen)
                 _dropdownArrow.AddToClassList("rotate");
             else
                 _dropdownArrow.RemoveFromClassList("rotate");
@@ -360,6 +364,7 @@ namespace NAS.UI.Controllers
         {
             if (_typeDropdownButton != null)
                 _typeDropdownButton.clicked -= ToggleDropdown;
+            if (_pager != null) _pager.IndexChanged -= OnPagerIndexChanged;
             if (_searchField != null && _onSearchChanged != null)
                 _searchField.UnregisterValueChangedCallback(_onSearchChanged);
             if (_startButton != null)
@@ -384,6 +389,8 @@ private void OnCarTrackPointerDown(PointerDownEvent evt)
             if (_pager == null || !_pager.HasCars)
                 return;
 
+            UiMotion.Cancel(_carsContainer, "carousel");   // grabbing the strip stops a settle in progress
+            _carsContainer.style.translate = new Translate(0, 0);
             _isDragging = true;
             _dragPointerId = evt.pointerId;
             _dragStartX = evt.position.x;
@@ -423,6 +430,24 @@ private void OnCarTrackPointerDown(PointerDownEvent evt)
             EndDrag(0f);
         }
 
+        // The centre card changed (swipe or tap): the strip was just rebound around the new centre, so start it where the new
+        // centre card VISUALLY was (one slot over, plus any drag already applied) and ease it home.
+        private void OnPagerIndexChanged(int delta)
+        {
+            UpdatePositionIndicator();
+            SettleCarousel(delta > 0 ? 1 : -1);
+        }
+
+        private void SettleCarousel(int direction)
+        {
+            var track = _carsContainer;
+            var cards = new List<VisualElement>(track.Children());
+            var spacing = cards.Count > 2 ? cards[2].layout.x - cards[1].layout.x : track.resolvedStyle.width / 3f;
+            var start = track.resolvedStyle.translate.x + direction * spacing;
+            UiMotion.Run(track, direction == 0 ? 0.42f : 0.34f, direction == 0 ? Ease.OutBack : Ease.OutCubic,
+                v => track.style.translate = new Translate(start * (1f - v), 0), 0f, "carousel");
+        }
+
         private void EndDrag(float totalDeltaX)
         {
             _isDragging = false;
@@ -431,15 +456,16 @@ private void OnCarTrackPointerDown(PointerDownEvent evt)
             float viewportWidth = _carsScrollView.resolvedStyle.width;
             float threshold = viewportWidth * 0.25f;
 
+            var before = _pager.CurrentIndex;
             if (totalDeltaX > threshold && _pager.CanGoPrevious)
                 _pager.Previous();
             else if (totalDeltaX < -threshold && _pager.CanGoNext)
                 _pager.Next();
 
-            // Instant swap: no easing. RefreshCards() has already rebound content
-            // around the (possibly new) center slot, so rest position is always
-            // translate 0 — nothing to compute or ease toward.
-            _carsContainer.style.translate = new Translate(0, 0);
+            // A committed swipe is settled by OnPagerIndexChanged (the same path a tap on a side card takes); a swipe that
+            // did not reach the threshold springs back here.
+            if (_pager.CurrentIndex == before)
+                SettleCarousel(0);
             UpdatePositionIndicator();
         }
 }

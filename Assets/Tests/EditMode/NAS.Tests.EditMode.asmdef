@@ -4,7 +4,8 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "GUID:f43488eba97b34fec9e8ab2e1396d780"
+        "GUID:f43488eba97b34fec9e8ab2e1396d780",
+        "NAS.Core.Motion"
     ],
     "includePlatforms": [
         "Editor"

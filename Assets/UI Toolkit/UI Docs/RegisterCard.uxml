@@ -6,9 +6,9 @@
     <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/LoginScreen.uss" />
 
     <ui:VisualElement name="register-card" class="login-card" style="justify-content: center;">
-        <ui:Label text="Register" class="card-title" />
+        <ui:Label text="Register" class="card-title motion-item" />
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="First name" class="field-label" />
             </ui:VisualElement>
@@ -16,7 +16,7 @@
             <ui:Label name="first-name-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="Last name" class="field-label" />
             </ui:VisualElement>
@@ -24,7 +24,7 @@
             <ui:Label name="last-name-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="Phone" class="field-label" />
             </ui:VisualElement>
@@ -32,7 +32,7 @@
             <ui:Label name="cell-number-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="Email" class="field-label" />
             </ui:VisualElement>
@@ -40,7 +40,7 @@
             <ui:Label name="email-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="Password" class="field-label" />
                 <ui:Button name="password-toggle-button" class="password-toggle" />
@@ -49,7 +49,7 @@
             <ui:Label name="password-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
-        <ui:VisualElement class="input-group">
+        <ui:VisualElement class="input-group motion-item">
             <ui:VisualElement class="field-label-row">
                 <ui:Label text="Confirm Password" class="field-label" />
                 <ui:Button name="confirm-password-toggle-button" class="password-toggle" />
@@ -59,7 +59,7 @@
         </ui:VisualElement>
 
         <ui:Label name="register-error-label" class="form-error" style="display: none;" />
-        <ui:Button name="register-button" class="gradient-button" style="margin-top: 8px;">
+        <ui:Button name="register-button" class="gradient-button motion-item" style="margin-top: 8px;">
             <ui:Label text="Register" name="register-button-label" class="gradient-button-label"/>
             <ui:VisualElement name="register-button-spinner" class="button-spinner" style="display: none;"/>
         </ui:Button>
@@ -67,6 +67,6 @@
         <ui:Label name="login-link-label"
                   text="Already have an account? &lt;link=&quot;login&quot;&gt;&lt;color=#00D4FF&gt;Login here&lt;/color&gt;&lt;/link&gt;"
                   enable-rich-text="true"
-                  class="rich-text-link" />
+                  class="rich-text-link motion-item" />
     </ui:VisualElement>
 </ui:UXML>
