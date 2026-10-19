@@ -184,6 +184,7 @@ namespace NAS.UI.Controllers
             }
 
             EventBus.Subscribe<EnterArRequestedEvent>(OnEnterAr);
+            EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Subscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
             ShowForCurrentCar();
@@ -241,6 +242,9 @@ namespace NAS.UI.Controllers
         }
 
         private void OnEnterAr(EnterArRequestedEvent evt) => ShowForCurrentCar();
+
+        // Signed out while in AR (an expired login): just hide. No telemetry - the session is gone and it would be rejected.
+        private void OnSessionEnded(SessionEndedEvent evt) => HideUi();
 
         private void OnRotationSliderGrabbed(PointerDownEvent evt) =>
             EventBus.Publish(new RotationSliderGrabbedEvent());
@@ -391,6 +395,7 @@ namespace NAS.UI.Controllers
         private void OnDisable()
         {
             EventBus.Unsubscribe<EnterArRequestedEvent>(OnEnterAr);
+            EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Unsubscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
 

@@ -158,6 +158,7 @@ namespace NAS.Core
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            ApiClient.SessionRejected += OnSessionRejected;
         }
 
         private void OnDisable()
@@ -170,6 +171,7 @@ namespace NAS.Core
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            ApiClient.SessionRejected -= OnSessionRejected;
         }
 
         // OnApplicationPause(true) is the reliable "session ended" signal on
@@ -220,6 +222,18 @@ namespace NAS.Core
         // both belong to THIS login, so they are closed (and sent with the old session id and token) before the
         // state is cleared. Stop() closes the current screen visit for good; the Login screen shown next starts a
         // fresh one. SessionEndedEvent goes out only after the state is cleared (see its doc comment).
+        // The server said our login token is no longer valid. Same clean-up as a sign-out (the existing pipeline: AuthController
+        // forgets the token, we clear the session, the router shows Login), then tell the Login screen why. Several
+        // requests can be rejected at once (catalog, telemetry, test drive...): only the first finds a token to drop,
+        // the rest see a signed-out session and do nothing.
+        private void OnSessionRejected()
+        {
+            if (string.IsNullOrEmpty(AccessToken)) return;
+            Debug.LogWarning("GameManager: the server rejected the login token - signing out.");
+            EventBus.Publish(new LogoutRequestedEvent());
+            EventBus.Publish(new SessionExpiredEvent(SessionExpiryPolicy.Notice));
+        }
+
         private void OnLogoutRequested(LogoutRequestedEvent evt)
         {
             _screens?.Stop();
