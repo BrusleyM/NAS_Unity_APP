@@ -25,5 +25,25 @@ namespace NAS.Core.Auth
         {
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/register", request, completed));
         }
+
+        public void VerifyEmail(VerifyEmailRequest request, Action<ApiResult<CustomerAuthResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/verify-email", request, completed));
+        }
+
+        public void ResendVerification(AccountIdentifierRequest request, Action<ApiResult<EmptyResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/resend-verification", request, completed));
+        }
+
+        public void ForgotPassword(AccountIdentifierRequest request, Action<ApiResult<EmptyResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/forgot-password", request, completed));
+        }
+
+        public void ResetPassword(ResetPasswordRequest request, Action<ApiResult<EmptyResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/reset-password", request, completed));
+        }
     }
 }

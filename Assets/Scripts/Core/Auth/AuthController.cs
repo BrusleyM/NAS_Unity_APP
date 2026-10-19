@@ -50,6 +50,10 @@ namespace NAS.Core.Auth
             EventBus.Subscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Subscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Subscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
+            EventBus.Subscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
+            EventBus.Subscribe<PasswordResetCodeRequestedEvent>(HandlePasswordResetCodeRequested);
+            EventBus.Subscribe<ResetPasswordRequestedEvent>(HandleResetPasswordRequested);
         }
 
         private void OnDisable()
@@ -57,6 +61,10 @@ namespace NAS.Core.Auth
             EventBus.Unsubscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Unsubscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Unsubscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
+            EventBus.Unsubscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
+            EventBus.Unsubscribe<PasswordResetCodeRequestedEvent>(HandlePasswordResetCodeRequested);
+            EventBus.Unsubscribe<ResetPasswordRequestedEvent>(HandleResetPasswordRequested);
         }
 
         // Forgets the stored token. GameManager clears the rest of the session on the same event.
@@ -72,10 +80,9 @@ private void HandleLoginRequested(LoginRequestedEvent evt)
 
             var errors = new Dictionary<string, string>();
 
-            if (string.IsNullOrWhiteSpace(evt.Email))
-                errors["email"] = "Email is required.";
-            else if (!EmailRegex.IsMatch(evt.Email))
-                errors["email"] = "Enter a valid email address.";
+            var identifierError = ProfileValidation.ValidateLoginIdentifier(evt.Email);
+            if (identifierError != null)
+                errors["email"] = identifierError;
 
             if (string.IsNullOrWhiteSpace(evt.Password))
                 errors["password"] = "Password is required.";
@@ -95,12 +102,13 @@ private void HandleLoginRequested(LoginRequestedEvent evt)
             }
 
             _requestInProgress = true;
+            var identifier = evt.Email.Trim();
             Debug.Log($"{LogPrefix} Login request started.");
             _authApi.Login(new NAS.Core.Auth.Dtos.CustomerLoginRequest
             {
-                email = evt.Email.Trim(),
+                email = identifier,
                 password = evt.Password
-            }, HandleApiResult);
+            }, result => HandleLoginResult(identifier, result));
         }
 
 private void HandleRegisterRequested(RegisterRequestedEvent evt)
@@ -160,7 +168,141 @@ private void HandleRegisterRequested(RegisterRequestedEvent evt)
                 cellNumber = evt.CellNumber.Trim(),
                 email = evt.Email.Trim(),
                 password = evt.Password
-            }, HandleApiResult);
+            }, result => HandleRegisterResult(evt.Email.Trim(), result));
+        }
+
+        private void HandleLoginResult(string identifier, ApiResult<NAS.Core.Auth.Dtos.CustomerAuthResponse> result)
+        {
+            if (!result.Success && result.Error.ErrorCode == "email_not_verified")
+            {
+                // Right password, but the address was never verified: send a fresh code and take them to the code screen.
+                _requestInProgress = false;
+                Debug.Log($"{LogPrefix} Sign-in needs email verification.");
+                BeginVerification(identifier, AccountRecovery.LooksLikeEmail(identifier) ? identifier : string.Empty, sendNewCode: true);
+                return;
+            }
+            HandleApiResult(result);
+        }
+
+        private void HandleRegisterResult(string email, ApiResult<NAS.Core.Auth.Dtos.CustomerAuthResponse> result)
+        {
+            if (result.Success && result.Value != null && result.Value.emailVerificationRequired)
+            {
+                // The server has emailed the code and issued no token yet.
+                _requestInProgress = false;
+                Debug.Log($"{LogPrefix} Registered; email verification required.");
+                BeginVerification(email, email, sendNewCode: false);
+                return;
+            }
+            HandleApiResult(result);
+        }
+
+        private void BeginVerification(string identifier, string email, bool sendNewCode)
+        {
+            // Best effort: if this fails the code screen's own "Resend code" is one tap away.
+            if (sendNewCode && _authApi != null)
+                _authApi.ResendVerification(new AccountIdentifierRequest { email = identifier }, _ => { });
+            EventBus.Publish(new EmailVerificationRequiredEvent(identifier, email));
+        }
+
+        // ---- Verify email -------------------------------------------------------------------
+
+        private void HandleVerifyEmailRequested(VerifyEmailRequestedEvent evt)
+        {
+            if (_requestInProgress) return;
+
+            var codeError = ProfileValidation.ValidateCode(evt.Code);
+            if (codeError != null)
+            {
+                PublishFieldErrors(new Dictionary<string, string> { ["code"] = codeError });
+                return;
+            }
+            if (_authApi == null) { PublishFailure("Authentication is not configured."); return; }
+
+            _requestInProgress = true;
+            _authApi.VerifyEmail(new VerifyEmailRequest
+            {
+                email = evt.Identifier.Trim(),
+                code = ProfileValidation.NormalizeCode(evt.Code)
+            }, result =>
+            {
+                if (!result.Success) { _requestInProgress = false; PublishCodeFailure(result.Error); return; }
+                HandleApiResult(result);   // the answer is a normal sign-in: token and customer
+            });
+        }
+
+        private void HandleResendVerificationRequested(ResendVerificationRequestedEvent evt)
+        {
+            if (_requestInProgress || _authApi == null) return;
+            _requestInProgress = true;
+            _authApi.ResendVerification(new AccountIdentifierRequest { email = evt.Identifier.Trim() }, result =>
+            {
+                _requestInProgress = false;
+                if (!result.Success) { PublishFailure(result.Error.UserMessage); return; }
+                EventBus.Publish(new CodeSentEvent(evt.Identifier));
+            });
+        }
+
+        // ---- Forgot password ----------------------------------------------------------------
+
+        private void HandlePasswordResetCodeRequested(PasswordResetCodeRequestedEvent evt)
+        {
+            if (_requestInProgress) return;
+
+            var identifierError = ProfileValidation.ValidateLoginIdentifier(evt.Identifier);
+            if (identifierError != null)
+            {
+                PublishFieldErrors(new Dictionary<string, string> { ["email"] = identifierError });
+                return;
+            }
+            if (_authApi == null) { PublishFailure("Authentication is not configured."); return; }
+
+            _requestInProgress = true;
+            var identifier = evt.Identifier.Trim();
+            _authApi.ForgotPassword(new AccountIdentifierRequest { email = identifier }, result =>
+            {
+                _requestInProgress = false;
+                if (!result.Success) { PublishFailure(result.Error.UserMessage); return; }
+                // Same answer whether or not the account exists, so this never says which.
+                EventBus.Publish(new PasswordResetCodeSentEvent(identifier));
+            });
+        }
+
+        private void HandleResetPasswordRequested(ResetPasswordRequestedEvent evt)
+        {
+            if (_requestInProgress) return;
+
+            var errors = ProfileValidation.ValidatePasswordReset(evt.Code, evt.NewPassword, evt.ConfirmPassword);
+            if (errors.Count > 0)
+            {
+                PublishFieldErrors(errors);
+                return;
+            }
+            if (_authApi == null) { PublishFailure("Authentication is not configured."); return; }
+
+            _requestInProgress = true;
+            _authApi.ResetPassword(new ResetPasswordRequest
+            {
+                email = evt.Identifier.Trim(),
+                code = ProfileValidation.NormalizeCode(evt.Code),
+                newPassword = evt.NewPassword
+            }, result =>
+            {
+                _requestInProgress = false;
+                if (!result.Success) { PublishCodeFailure(result.Error); return; }
+                Debug.Log($"{LogPrefix} Password reset completed.");
+                EventBus.Publish(new PasswordResetCompletedEvent());
+            });
+        }
+
+        // A wrong, used-up or expired code belongs on the code box, whatever screen it was typed on.
+        private static void PublishCodeFailure(ApiError error)
+        {
+            Debug.LogWarning($"{LogPrefix} Code request failed. Status {error.StatusCode}, code {error.ErrorCode ?? "unknown"}, trace {error.TraceId ?? "none"}.");
+            if (error.ErrorCode == "code_invalid" || error.ErrorCode == "code_expired" || error.ErrorCode == "too_many_attempts")
+                PublishFieldErrors(new Dictionary<string, string> { ["code"] = error.UserMessage });
+            else
+                PublishFailure(error.UserMessage);
         }
 
         private void HandleApiResult(ApiResult<NAS.Core.Auth.Dtos.CustomerAuthResponse> result)

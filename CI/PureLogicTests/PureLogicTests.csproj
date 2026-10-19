@@ -2,7 +2,7 @@
   <!--
     Runs the project's engine-free logic and its NUnit tests with plain `dotnet test`, so CI needs no
     Unity licence. Only files that have NO UnityEngine dependency may be linked here:
-    ScreenVisitTracker, AppEnvironment, EnvironmentPolicy, ProfileValidation, ModelVariantRules, SessionExpiryPolicy.
+    ScreenVisitTracker, AppEnvironment, EnvironmentPolicy, ProfileValidation, AccountRecovery, ModelVariantRules, SessionExpiryPolicy.
     The same test files also run inside Unity (Test Runner > EditMode); this proves they stay
     engine-free and pass.
   -->
@@ -19,12 +19,14 @@
     <Compile Include="../../Assets/Scripts/Core/AppEnvironment.cs" />
     <Compile Include="../../Assets/Scripts/Core/EnvironmentPolicy.cs" />
     <Compile Include="../../Assets/Scripts/Core/ProfileValidation.cs" />
+    <Compile Include="../../Assets/Scripts/Core/AccountRecovery.cs" />
     <Compile Include="../../Assets/Scripts/Core/Motion/Easing.cs" />
     <Compile Include="../../Assets/Scripts/Core/ModelVariantRules.cs" />
     <Compile Include="../../Assets/Scripts/Core/Networking/SessionExpiryPolicy.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ScreenVisitTrackerTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/EnvironmentPolicyTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ProfileValidationTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/AccountRecoveryTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/EasingTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ModelVariantRulesTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/SessionExpiryPolicyTests.cs" />

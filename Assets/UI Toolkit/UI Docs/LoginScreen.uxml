@@ -1,13 +1,14 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/LoginScreen.uss?fileID=7433441132597879392&amp;guid=337a8bdf53ad6482ca1ee9380b5a0e56&amp;type=3#LoginScreen"/>
+    <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/ProfileScreens.uss"/>
     <ui:VisualElement name="login-card" class="login-card" style="flex-wrap: nowrap; justify-content: center;">
         <ui:Label text="Login" class="card-title motion-item"/>
         <ui:VisualElement style="justify-content: center; margin-bottom: 8px; width: 100%;">
             <ui:VisualElement name="email_fields" class="input-group motion-item">
                 <ui:VisualElement class="field-label-row">
-                    <ui:Label text="Email" class="field-label"/>
+                    <ui:Label text="Email or username" class="field-label"/>
                 </ui:VisualElement>
-                <ui:TextField name="email-field" placeholder="Enter email" class="input-field"/>
+                <ui:TextField name="email-field" placeholder="Enter email or username" class="input-field"/>
                 <ui:Label name="email-error-label" class="field-error" style="display: none;"/>
             </ui:VisualElement>
             <ui:VisualElement name="password_fields" class="input-group motion-item" style="justify-content: center;">
@@ -19,11 +20,13 @@
                 <ui:Label name="password-error-label" class="field-error" style="display: none;"/>
             </ui:VisualElement>
         </ui:VisualElement>
+        <ui:Label name="login-notice-label" class="form-success" style="display: none;"/>
         <ui:Label name="login-error-label" class="form-error" style="display: none;"/>
         <ui:Button name="login-button" class="gradient-button motion-item" style="margin-top: 8px;">
             <ui:Label text="Login" name="login-button-label" class="gradient-button-label"/>
             <ui:VisualElement name="login-button-spinner" class="button-spinner" style="display: none;"/>
         </ui:Button>
+        <ui:Label name="forgot-link-label" text="&lt;link=&quot;forgot&quot;&gt;&lt;color=#00D4FF&gt;Forgot password?&lt;/color&gt;&lt;/link&gt;" enable-rich-text="true" class="rich-text-link motion-item"/>
         <ui:Label name="register-link-label" text="Don&apos;t have an account? &lt;link=&quot;register&quot;&gt;&lt;color=#00D4FF&gt;Register here&lt;/color&gt;&lt;/link&gt;" enable-rich-text="true" class="rich-text-link motion-item"/>
     </ui:VisualElement>
 </ui:UXML>

@@ -15,6 +15,9 @@ namespace NAS.Core
         public const string EditProfile = "edit_profile";
         public const string ChangePassword = "change_password";
         public const string Privacy = "privacy";
+        public const string ForgotPassword = "forgot_password";
+        public const string ResetPassword = "reset_password";
+        public const string VerifyEmail = "verify_email";
     }
 
     /// <summary>
