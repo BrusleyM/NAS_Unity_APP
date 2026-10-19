@@ -2,7 +2,8 @@
     "name": "NAS.UI.Components",
     "rootNamespace": "NAS.UI.Components",
     "references": [
-        "GUID:8ce3af45545a8490bba3d65b1ea590d9"
+        "GUID:8ce3af45545a8490bba3d65b1ea590d9",
+        "NAS.Core.Motion"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

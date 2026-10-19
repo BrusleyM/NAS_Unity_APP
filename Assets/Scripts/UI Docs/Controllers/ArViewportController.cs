@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NAS.Core;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 using NAS.Core.Models;
 using NAS.Core.Networking;
 using UnityEngine;
@@ -316,7 +317,16 @@ namespace NAS.UI.Controllers
             _testDriveButton.EnableInClassList("test-drive-button--sending", _isRequestingTestDrive);
             _testDriveButton.EnableInClassList("test-drive-button--failed", failed);
             _testDriveButton.SetEnabled(!done && !_isRequestingTestDrive);
+
+            // The result lands with a little motion: a pop when confirmed, a shake when it failed.
+            if (done && !_testDriveWasDone) UiMotion.Pop(_testDriveButton, 0.94f, 0.4f);
+            if (failed && !_testDriveWasFailed) UiMotion.Shake(_testDriveButton, 6f, 0.3f);
+            _testDriveWasDone = done;
+            _testDriveWasFailed = failed;
         }
+
+        private bool _testDriveWasDone;
+        private bool _testDriveWasFailed;
 
         // Best-effort like the rest of the AR scene's network calls: a failure
         // just leaves the button tappable so the customer can try again.
@@ -433,12 +443,41 @@ namespace NAS.UI.Controllers
 
         private void SetCustomizeSheetOpen(bool open)
         {
-            var display = open ? DisplayStyle.Flex : DisplayStyle.None;
-            if (_sheetBackdrop != null)
-                _sheetBackdrop.style.display = display;
-            if (_customizeSheet != null)
-                _customizeSheet.style.display = display;
+            var wasOpen = _customizeSheet != null && _customizeSheet.style.display == DisplayStyle.Flex;
+            if (open)
+            {
+                SetElementVisible(_sheetBackdrop, true);
+                SetElementVisible(_customizeSheet, true);
+                UiMotion.FadeIn(_sheetBackdrop, 0.22f);
+                SlideSheet(0.38f, Ease.OutCubic, from: 100f, to: 0f, onComplete: null);
+            }
+            else if (wasOpen)
+            {
+                // Slide away first, then take it out of the layout so it stops catching taps.
+                UiMotion.FadeOut(_sheetBackdrop, 0.2f);
+                SlideSheet(0.26f, Ease.InCubic, from: 0f, to: 100f, onComplete: () =>
+                {
+                    SetElementVisible(_sheetBackdrop, false);
+                    SetElementVisible(_customizeSheet, false);
+                });
+            }
+            else
+            {
+                // Already closed (e.g. the per-visit reset): nothing to animate.
+                SetElementVisible(_sheetBackdrop, false);
+                SetElementVisible(_customizeSheet, false);
+            }
             EventBus.Publish(new CustomizeSheetToggledEvent(open));
+        }
+
+        // The sheet moves as a percentage of its own height, so it slides the whole way whatever the screen size.
+        private void SlideSheet(float duration, Ease ease, float from, float to, System.Action onComplete)
+        {
+            if (_customizeSheet == null) { onComplete?.Invoke(); return; }
+            _customizeSheet.style.translate = new Translate(0, Length.Percent(from));
+            UiMotion.Run(_customizeSheet, duration, ease,
+                v => _customizeSheet.style.translate = new Translate(0, Length.Percent(Mathf.LerpUnclamped(from, to, v))),
+                0f, "sheet", onComplete);
         }
 
         private void OnCategoryClicked(string categoryId)
