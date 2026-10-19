@@ -167,6 +167,33 @@ it replaced a copy in each of six controllers).
 **Reduce motion** is a developer switch only (`NAS > Dev > Reduce UI Motion` in the Editor menu, remembered in PlayerPrefs; `MotionSettings`
 ignores it in release builds). It makes every animation jump to its end state, which is what tests and screenshots want. Spinners ignore it.
 
+## Verify email, forgot password and usernames (pre-login screens)
+
+The server (NAS_Backend) emails six-digit codes (10 minutes, 5 wrong guesses, 60 s between sends) and gives every customer a generated
+username (`ada4821`). The app side:
+
+- **Sign-in box** takes an email OR a username (an "@" means email; `ProfileValidation.ValidateLoginIdentifier`). The request field is still
+  named `email` (`CustomerLoginRequest`), as is the one in every code endpoint, so older servers and apps keep agreeing.
+- **Verify email**: when the server wants the address verified (`emailVerificationRequired` on the register answer, or `email_not_verified`
+  on a sign-in) `AuthController` publishes `EmailVerificationRequiredEvent`; `ParentPageController` shows `VerifyEmailCardController`
+  (`Resources/UI/VerifyEmail.uxml`). A correct code answers with a normal sign-in (token), so it ends in the usual
+  `AuthSucceededEvent` -> `SessionAuthenticatedEvent` -> dealership screen. A sign-in that is refused for this sends a fresh code first.
+  Registration with no token must never reach `AuthSession.Apply` (it throws on an empty token): `HandleRegisterResult` checks first.
+- **Forgot password**: Login card link -> `ForgotPasswordCardController` -> `PasswordResetCodeSentEvent` -> `ResetPasswordCardController`
+  (code + new password twice) -> `PasswordResetCompletedEvent` -> login screen with a green notice (`LoginNoticeEvent`, published after the
+  card exists). The server answers 200 for any account, so no screen says whether an account exists ("If there is an account for that...").
+  "Resend code" on the reset screen raises the same `PasswordResetCodeSentEvent`; the router ignores it while that screen is showing.
+- A wrong, expired or used-up code (`code_invalid` / `code_expired` / `too_many_attempts`) is mapped onto the code box by
+  `AuthController.PublishCodeFailure`. These calls carry no bearer token, so a 401 on them is never read as an expired session.
+- The code box (`CodeCardSupport`): digits only, six at most, numeric keypad; "Resend code" locked with a countdown for 60 s
+  (`AccountRecovery.SecondsLeft`, pure and tested).
+- **Username**: shown in Edit Profile (`username-group`). Editable while `canChangeUsername` is true; saving sends `PUT /api/customer/profile/username`
+  first (refused names show on the username box and nothing else is saved), then the details. After the one change it is read-only.
+  `ProfileValidation.ValidateUsername` mirrors the server's shape rule.
+- New screens load from `Resources/UI` and share `AccountCards.uss`; screen names `verify_email`, `forgot_password`, `reset_password`.
+- Testing without sending mail: run the API locally with no `Email__ApiKey` (the code is written to its console in Development) and, to
+  try the registration/sign-in gate, `Auth__RequireEmailVerification=true`. Never point a test at the API that has the real Resend key.
+
 ## Telemetry events that feed the ML model
 
 `GameManager` owns sending telemetry events (`LogActivityEvent`, best-effort, skipped until

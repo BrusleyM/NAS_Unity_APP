@@ -11,6 +11,11 @@ namespace NAS.Core.Auth.Dtos
         public string lastName;
         public string cellNumber;
         public string status;
+        public bool emailVerified;
+        // The sign-in name (ada4821); blank from a server that predates usernames.
+        public string username;
+        // True until the generated username has been replaced once.
+        public bool canChangeUsername;
         public string createdAt;
     }
 }

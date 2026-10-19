@@ -19,6 +19,8 @@ namespace NAS.UI.Controllers
         [SerializeField] private VisualElement _loginButtonSpinner;
         [SerializeField] private Label _richTextLabel;
         [SerializeField] private Label _errorLabel; // general/backend-level error, "login-error-label"
+        [SerializeField] private Label _noticeLabel; // a positive message, "login-notice-label" (e.g. password changed)
+        private Label _forgotLinkLabel;
         [SerializeField] private Label _emailErrorLabel;
         [SerializeField] private Label _passwordErrorLabel;
         [SerializeField] private Button _passwordToggleButton;
@@ -39,6 +41,8 @@ namespace NAS.UI.Controllers
             _loginButtonSpinner = root.Q<VisualElement>("login-button-spinner");
             _richTextLabel = root.Q<Label>("register-link-label");
             _errorLabel = root.Q<Label>("login-error-label");
+            _noticeLabel = root.Q<Label>("login-notice-label");
+            _forgotLinkLabel = root.Q<Label>("forgot-link-label");
             _emailErrorLabel = root.Q<Label>("email-error-label");
             _passwordErrorLabel = root.Q<Label>("password-error-label");
             _passwordToggleButton = root.Q<Button>("password-toggle-button");
@@ -48,6 +52,9 @@ namespace NAS.UI.Controllers
 
             if (_richTextLabel != null)
                 _richTextLabel.RegisterCallback<PointerUpLinkTagEvent>(OnLinkClicked);
+
+            if (_forgotLinkLabel != null)
+                _forgotLinkLabel.RegisterCallback<PointerUpLinkTagEvent>(OnForgotLinkClicked);
 
             if (_passwordToggleButton != null)
             {
@@ -60,7 +67,16 @@ namespace NAS.UI.Controllers
 
             EventBus.Subscribe<AuthFailedEvent>(OnAuthFailed);
             EventBus.Subscribe<SessionExpiredEvent>(OnSessionExpired);
+            EventBus.Subscribe<LoginNoticeEvent>(OnLoginNotice);
         }
+
+        private void OnForgotLinkClicked(PointerUpLinkTagEvent evt)
+        {
+            if (evt.linkID == "forgot")
+                EventBus.Publish(new NavigateToForgotPasswordRequestedEvent(_emailField?.value));
+        }
+
+        private void OnLoginNotice(LoginNoticeEvent evt) => FormHelpers.SetMessage(_noticeLabel, evt.Message);
 
         private void OnLoginClicked()
         {
@@ -128,6 +144,7 @@ namespace NAS.UI.Controllers
 
         private void ClearAllErrors()
         {
+            FormHelpers.SetMessage(_noticeLabel, null);
             SetFormError(null);
             SetFieldError(_emailField, _emailErrorLabel, null);
             SetFieldError(_passwordField, _passwordErrorLabel, null);
@@ -143,11 +160,14 @@ namespace NAS.UI.Controllers
             if (_loginButton != null) _loginButton.clicked -= OnLoginClicked;
             if (_richTextLabel != null)
                 _richTextLabel.UnregisterCallback<PointerUpLinkTagEvent>(OnLinkClicked);
+            if (_forgotLinkLabel != null)
+                _forgotLinkLabel.UnregisterCallback<PointerUpLinkTagEvent>(OnForgotLinkClicked);
             if (_passwordToggleButton != null)
                 _passwordToggleButton.clicked -= TogglePasswordVisibility;
 
             EventBus.Unsubscribe<AuthFailedEvent>(OnAuthFailed);
             EventBus.Unsubscribe<SessionExpiredEvent>(OnSessionExpired);
+            EventBus.Unsubscribe<LoginNoticeEvent>(OnLoginNotice);
         }
     }
 }

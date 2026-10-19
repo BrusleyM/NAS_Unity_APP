@@ -24,6 +24,10 @@ namespace NAS.UI.Controllers
         private const string EditProfileUxmlPath = "UI/EditProfile";
         private const string ChangePasswordUxmlPath = "UI/ChangePassword";
         private const string PrivacyUxmlPath = "UI/Privacy";
+        // The screens for emailed codes load from Resources too, so they needed no scene edit.
+        private const string VerifyEmailUxmlPath = "UI/VerifyEmail";
+        private const string ForgotPasswordUxmlPath = "UI/ForgotPassword";
+        private const string ResetPasswordUxmlPath = "UI/ResetPassword";
 
         [SerializeField] private VisualTreeAsset _splashCardUxml;
         [SerializeField] private VisualTreeAsset _loginCardUxml;
@@ -112,6 +116,10 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
             EventBus.Subscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
+            EventBus.Subscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
+            EventBus.Subscribe<NavigateToForgotPasswordRequestedEvent>(OnNavigateToForgotPassword);
+            EventBus.Subscribe<PasswordResetCodeSentEvent>(OnPasswordResetCodeSent);
+            EventBus.Subscribe<PasswordResetCompletedEvent>(OnPasswordResetCompleted);
         }
 
         private void UnsubscribeFromFlowEvents()
@@ -131,6 +139,10 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
             EventBus.Unsubscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
+            EventBus.Unsubscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
+            EventBus.Unsubscribe<NavigateToForgotPasswordRequestedEvent>(OnNavigateToForgotPassword);
+            EventBus.Unsubscribe<PasswordResetCodeSentEvent>(OnPasswordResetCodeSent);
+            EventBus.Unsubscribe<PasswordResetCompletedEvent>(OnPasswordResetCompleted);
         }
 
         // Subscribed to GameManager's SessionAuthenticatedEvent/SessionCarSelectedEvent,
@@ -147,6 +159,25 @@ namespace NAS.UI.Controllers
         private void OnChangeDealershipRequested(ChangeDealershipRequestedEvent evt) => ShowDealershipSelectionScreen();
         private void OnNavigateToRegister(NavigateToRegisterRequestedEvent evt) => ShowRegisterCard();
         private void OnNavigateToLogin(NavigateToLoginRequestedEvent evt) => ShowLoginCard();
+
+        // ---- Emailed codes: verify the address, forgot password ----------------------------------
+        private void OnEmailVerificationRequired(EmailVerificationRequiredEvent evt) => ShowVerifyEmailCard(evt.Identifier, evt.Email);
+        private void OnNavigateToForgotPassword(NavigateToForgotPasswordRequestedEvent evt) => ShowForgotPasswordCard(evt.Identifier);
+
+        // The reset code screen also asks for a new code itself ("Resend code"), which raises this same event: it is
+        // already showing then, and must keep what has been typed, so it is not shown again.
+        private void OnPasswordResetCodeSent(PasswordResetCodeSentEvent evt)
+        {
+            if (GetComponent<ResetPasswordCardController>() != null) return;
+            ShowResetPasswordCard(evt.Identifier);
+        }
+
+        // Back to login with a message. The notice is published after the card exists, so it is there to receive it.
+        private void OnPasswordResetCompleted(PasswordResetCompletedEvent evt)
+        {
+            ShowLoginCard();
+            EventBus.Publish(new LoginNoticeEvent("Your password has been changed. Sign in with your new password."));
+        }
         // AR Scene is loaded additively exactly once per app session
         // (GameManager.IsArSceneLoaded) and never reloaded after that -
         // destroying and recreating ARSession/XROrigin via a full scene
@@ -283,6 +314,27 @@ namespace NAS.UI.Controllers
             SwapCard(_registerCardUxml, typeof(RegisterCardController), ScreenNames.Register);
         }
 
+        public void ShowVerifyEmailCard(string identifier, string email)
+        {
+            var uxml = ResolveUxml(null, VerifyEmailUxmlPath);
+            if (uxml == null) return;
+            ((VerifyEmailCardController)SwapCard(uxml, typeof(VerifyEmailCardController), ScreenNames.VerifyEmail)).Initialize(identifier, email);
+        }
+
+        public void ShowForgotPasswordCard(string prefill)
+        {
+            var uxml = ResolveUxml(null, ForgotPasswordUxmlPath);
+            if (uxml == null) return;
+            ((ForgotPasswordCardController)SwapCard(uxml, typeof(ForgotPasswordCardController), ScreenNames.ForgotPassword)).Initialize(prefill);
+        }
+
+        public void ShowResetPasswordCard(string identifier)
+        {
+            var uxml = ResolveUxml(null, ResetPasswordUxmlPath);
+            if (uxml == null) return;
+            ((ResetPasswordCardController)SwapCard(uxml, typeof(ResetPasswordCardController), ScreenNames.ResetPassword)).Initialize(identifier);
+        }
+
         public void ShowDealershipSelectionScreen()
         {
             var uxml = ResolveUxml(_dealershipSelectionCardUxml, "UI/DealershipSelection");
@@ -336,7 +388,8 @@ namespace NAS.UI.Controllers
         {
             typeof(SplashScreenController), typeof(LoginCardController), typeof(RegisterCardController),
             typeof(DealershipSelectionController), typeof(CarSelectionScreenController), typeof(EstimatorCardController),
-            typeof(EditProfileController), typeof(ChangePasswordController), typeof(PrivacyController)
+            typeof(EditProfileController), typeof(ChangePasswordController), typeof(PrivacyController),
+            typeof(VerifyEmailCardController), typeof(ForgotPasswordCardController), typeof(ResetPasswordCardController)
         };
 
         private void RemoveCardControllers()

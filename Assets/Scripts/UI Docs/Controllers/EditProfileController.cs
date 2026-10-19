@@ -17,14 +17,18 @@ namespace NAS.UI.Controllers
         private const string LogPrefix = "[NAS Profile]";
         private const float ReturnDelayMs = 900f;
 
-        private TextField _firstName, _lastName, _cellNumber, _email;
-        private Label _firstNameError, _lastNameError, _cellNumberError, _statusLabel, _errorLabel, _saveLabel;
+        private TextField _firstName, _lastName, _cellNumber, _email, _username;
+        private Label _firstNameError, _lastNameError, _cellNumberError, _usernameError, _usernameHint, _statusLabel, _errorLabel, _saveLabel;
+        private VisualElement _usernameGroup;
         private Button _backButton, _saveButton;
         private VisualElement _spinner;
 
         private ICustomerProfileApi _api;
         private bool _loaded;
         private bool _busy;
+        // The generated username can be replaced once; these are what the server last told us.
+        private string _loadedUsername = string.Empty;
+        private bool _canChangeUsername;
 
         private void OnEnable()
         {
@@ -36,6 +40,10 @@ namespace NAS.UI.Controllers
             _lastName = root.Q<TextField>("last-name-field");
             _cellNumber = root.Q<TextField>("cell-number-field");
             _email = root.Q<TextField>("email-field");
+            _username = root.Q<TextField>("username-field");
+            _usernameGroup = root.Q<VisualElement>("username-group");
+            _usernameError = root.Q<Label>("username-error-label");
+            _usernameHint = root.Q<Label>("username-hint-label");
             _firstNameError = root.Q<Label>("first-name-error-label");
             _lastNameError = root.Q<Label>("last-name-error-label");
             _cellNumberError = root.Q<Label>("cell-number-error-label");
@@ -92,7 +100,27 @@ namespace NAS.UI.Controllers
                 _lastName.value = result.Value.lastName;
                 _cellNumber.value = result.Value.cellNumber;
                 _email.value = result.Value.email;
+                ApplyUsername(result.Value.username, result.Value.canChangeUsername);
             });
+        }
+
+        // Shows the username box: editable while the one change is unused, read-only (like the email) afterwards, and hidden
+        // when talking to a server that predates usernames.
+        private void ApplyUsername(string username, bool canChange)
+        {
+            _loadedUsername = ProfileValidation.NormalizeUsername(username);
+            _canChangeUsername = canChange;
+            if (_usernameGroup != null)
+                _usernameGroup.style.display = string.IsNullOrEmpty(_loadedUsername) ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_username == null) return;
+
+            _username.SetValueWithoutNotify(_loadedUsername);
+            _username.isReadOnly = !canChange;
+            _username.EnableInClassList("input-field--readonly", !canChange);
+            if (_usernameHint != null)
+                _usernameHint.text = canChange
+                    ? "Made for you. You can sign in with it or your email, and change it once."
+                    : "You have used your one change, so your username stays as it is.";
         }
 
         private void OnSaveClicked()
@@ -107,10 +135,56 @@ namespace NAS.UI.Controllers
             FormHelpers.SetFieldError(_firstName, _firstNameError, FormHelpers.ErrorFor(errors, "firstName"));
             FormHelpers.SetFieldError(_lastName, _lastNameError, FormHelpers.ErrorFor(errors, "lastName"));
             FormHelpers.SetFieldError(_cellNumber, _cellNumberError, FormHelpers.ErrorFor(errors, "cellNumber"));
-            if (errors.Count > 0) return;
+
+            var changingUsername = _canChangeUsername && _username != null
+                && ProfileValidation.NormalizeUsername(_username.value) != _loadedUsername;
+            var usernameProblem = changingUsername ? ProfileValidation.ValidateUsername(_username.value) : null;
+            FormHelpers.SetFieldError(_username, _usernameError, usernameProblem);
+            if (errors.Count > 0 || usernameProblem != null) return;
 
             if (!TryGetApi(out var token)) return;
             SetBusy(true);
+
+            if (!changingUsername)
+            {
+                SaveDetails(token);
+                return;
+            }
+
+            // The username goes first: if it is refused (taken, reserved) nothing else is saved and the box says why.
+            _api.ChangeUsername(new ChangeUsernameRequest { username = ProfileValidation.NormalizeUsername(_username.value) }, token, usernameResult =>
+            {
+                if (this == null) return;
+                if (!usernameResult.Success)
+                {
+                    SetBusy(false);
+                    Debug.LogWarning($"{LogPrefix} Username change failed. Status {usernameResult.Error.StatusCode}, code {usernameResult.Error.ErrorCode ?? "unknown"}.");
+                    ShowUsernameError(usernameResult.Error.ErrorCode, usernameResult.Error.UserMessage);
+                    return;
+                }
+                ApplyUsername(usernameResult.Value.username, usernameResult.Value.canChangeUsername);
+                SaveDetails(token);
+            });
+        }
+
+        private void ShowUsernameError(string errorCode, string message)
+        {
+            switch (errorCode)
+            {
+                case "username_taken":
+                case "username_invalid":
+                case "username_change_used":
+                    FormHelpers.SetFieldError(_username, _usernameError, message);
+                    break;
+                default:
+                    FormHelpers.SetMessage(_errorLabel, message);
+                    break;
+            }
+        }
+
+        // The busy state is already on when this runs.
+        private void SaveDetails(string token)
+        {
             var request = new UpdateProfileRequest
             {
                 firstName = _firstName.value.Trim(),
