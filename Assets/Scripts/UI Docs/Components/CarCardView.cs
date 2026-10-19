@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using NAS.Core.Models;
+using NAS.Core.Motion;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -63,6 +64,7 @@ public void SetCar(CarData car, int carIndex)
                 return;
 
             _thumbnail.image = texture != null ? texture : PlaceholderTexture;
+            if (texture != null) UiMotion.FadeIn(_thumbnail, 0.35f);   // the real picture eases in over the placeholder
         }
 
         private static string BuildLabel(CarData car)

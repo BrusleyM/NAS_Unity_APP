@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 
 namespace NAS.Core
 {
@@ -13,15 +14,12 @@ namespace NAS.Core
     // ParentPageController purely through EventBus, same as everything else.
     public class EstimateConfirmationOverlayController : MonoBehaviour
     {
-        private const float SpinDegreesPerSecond = 220f;
 
         private VisualElement _root;
         private VisualElement _spinner;
         private VisualElement _checkmark;
         private Label _messageLabel;
         private Button _doneButton;
-        private float _spinAngle;
-        private bool _spinnerVisible;
 
         private void OnEnable()
         {
@@ -55,18 +53,11 @@ namespace NAS.Core
                 _doneButton.clicked -= OnDoneClicked;
         }
 
-        private void Update()
-        {
-            if (!_spinnerVisible || _spinner == null) return;
-            _spinAngle = (_spinAngle + SpinDegreesPerSecond * Time.deltaTime) % 360f;
-            _spinner.style.rotate = new StyleRotate(new Rotate(new Angle(_spinAngle, AngleUnit.Degree)));
-        }
-
         private void OnSubmissionStarted(EstimateSubmissionStartedEvent evt)
         {
             SetVisible(true);
-            _spinnerVisible = true;
             SetElementVisible(_spinner, true);
+            UiMotion.Spin(_spinner);
             SetElementVisible(_checkmark, false);
             if (_messageLabel != null)
                 _messageLabel.text = "Sending to dealer...";
@@ -76,9 +67,10 @@ namespace NAS.Core
 
         private void OnSubmitted(EstimateSubmittedEvent evt)
         {
-            _spinnerVisible = false;
+            UiMotion.StopSpin(_spinner);
             SetElementVisible(_spinner, false);
             SetElementVisible(_checkmark, true);
+            UiMotion.Pop(_checkmark, 0.5f, 0.45f);
             if (_messageLabel != null)
                 _messageLabel.text = "Sent to dealer!";
             if (_doneButton != null)
@@ -99,9 +91,14 @@ namespace NAS.Core
         private void SetVisible(bool visible)
         {
             if (_root != null)
+            {
                 _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+                if (visible) UiMotion.FadeIn(_root, 0.2f);
+            }
             if (!visible)
-                _spinnerVisible = false;
+            {
+                UiMotion.StopSpin(_spinner);
+            }
         }
 
         private static void SetElementVisible(VisualElement element, bool visible)

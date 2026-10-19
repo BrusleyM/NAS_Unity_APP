@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NAS.Core.Motion;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -11,22 +12,24 @@ namespace NAS.UI.Controllers
     /// </summary>
     internal static class FormHelpers
     {
-        public const float SpinDegreesPerSecond = 220f; // same speed as LoginCardController / LoadingOverlayController
-
+        // A message appearing under a field rises into place and the field shakes; clearing it just hides it.
         public static void SetFieldError(TextField field, Label errorLabel, string message)
         {
             var hasError = !string.IsNullOrEmpty(message);
             if (field != null) field.EnableInClassList("input-field--error", hasError);
-            if (errorLabel == null) return;
-            errorLabel.text = message ?? string.Empty;
-            errorLabel.style.display = hasError ? DisplayStyle.Flex : DisplayStyle.None;
+            if (hasError) UiMotion.Shake(field);
+            Show(errorLabel, message);
         }
 
-        public static void SetMessage(Label label, string message)
+        public static void SetMessage(Label label, string message) => Show(label, message);
+
+        private static void Show(Label label, string message)
         {
             if (label == null) return;
+            var hasMessage = !string.IsNullOrEmpty(message);
             label.text = message ?? string.Empty;
-            label.style.display = string.IsNullOrEmpty(message) ? DisplayStyle.None : DisplayStyle.Flex;
+            label.style.display = hasMessage ? DisplayStyle.Flex : DisplayStyle.None;
+            if (hasMessage) UiMotion.Enter(label, 0f, 6f, 0.22f);
         }
 
         public static void SetSubmitting(Button button, Label buttonLabel, VisualElement spinner, bool submitting)
@@ -34,14 +37,8 @@ namespace NAS.UI.Controllers
             if (button != null) button.SetEnabled(!submitting);
             if (buttonLabel != null) buttonLabel.style.display = submitting ? DisplayStyle.None : DisplayStyle.Flex;
             if (spinner != null) spinner.style.display = submitting ? DisplayStyle.Flex : DisplayStyle.None;
-        }
-
-        public static float Spin(VisualElement spinner, float angle, float deltaTime)
-        {
-            if (spinner == null) return angle;
-            angle = (angle + SpinDegreesPerSecond * deltaTime) % 360f;
-            spinner.style.rotate = new StyleRotate(new Rotate(new Angle(angle, AngleUnit.Degree)));
-            return angle;
+            if (submitting) UiMotion.Spin(spinner);
+            else UiMotion.StopSpin(spinner);
         }
 
         public static string ErrorFor(IDictionary<string, string> errors, string key) =>

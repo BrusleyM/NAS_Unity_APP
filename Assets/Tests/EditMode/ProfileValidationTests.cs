@@ -117,5 +117,120 @@ namespace NAS.Tests
         {
             Assert.AreEqual(expected, ProfileValidation.Initials(name));
         }
+    
+        // --- sign-in identifier (email or username) ------------------------------------
+
+        [TestCase("ada@example.com")]
+        [TestCase("  ada@example.com  ")]
+        [TestCase("ada4821")]
+        [TestCase("ADA4821")]
+        [TestCase("cool.ada_1")]
+        public void AnEmailOrAUsernameIsAcceptedAsTheSignInName(string typed)
+        {
+            Assert.IsNull(ProfileValidation.ValidateLoginIdentifier(typed));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void ABlankSignInNameIsRefused(string typed)
+        {
+            Assert.AreEqual("Enter your email or username.", ProfileValidation.ValidateLoginIdentifier(typed));
+        }
+
+        [TestCase("ada@")]
+        [TestCase("@example.com")]
+        [TestCase("ada@example")]
+        [TestCase("a b@example.com")]
+        public void SomethingWithAnAtSignMustBeAProperEmail(string typed)
+        {
+            Assert.AreEqual("Enter a valid email address.", ProfileValidation.ValidateLoginIdentifier(typed));
+        }
+
+        [TestCase("ab")]
+        [TestCase("9lives")]
+        [TestCase("has space")]
+        [TestCase("bad-dash")]
+        public void SomethingWithoutAnAtSignMustLookLikeAUsername(string typed)
+        {
+            Assert.IsNotNull(ProfileValidation.ValidateLoginIdentifier(typed));
+        }
+
+        // --- username (the one-time change) --------------------------------------------
+
+        [TestCase("ada4821")]
+        [TestCase("Cool.Ada")]
+        [TestCase("  abc  ")]
+        public void AUsernameOfTheRightShapeIsAccepted(string typed)
+        {
+            Assert.IsNull(ProfileValidation.ValidateUsername(typed));
+        }
+
+        [TestCase("")]
+        [TestCase("ab")]
+        [TestCase("1abc")]
+        [TestCase("a@b")]
+        [TestCase("émile")]
+        [TestCase("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]   // 31 characters
+        public void AUsernameOfTheWrongShapeIsRefused(string typed)
+        {
+            Assert.IsNotNull(ProfileValidation.ValidateUsername(typed));
+        }
+
+        [Test]
+        public void ANormalisedUsernameIsTrimmedAndLowerCase()
+        {
+            Assert.AreEqual("cool.ada", ProfileValidation.NormalizeUsername("  Cool.ADA "));
+            Assert.AreEqual(string.Empty, ProfileValidation.NormalizeUsername(null));
+        }
+
+        // --- the emailed code ----------------------------------------------------------
+
+        [TestCase("123456", "123456")]
+        [TestCase("12 34-56", "123456")]
+        [TestCase("12ab34", "1234")]
+        [TestCase("1234567890", "123456")]
+        [TestCase("", "")]
+        [TestCase(null, "")]
+        public void ACodeBoxKeepsOnlyTheFirstSixDigits(string typed, string expected)
+        {
+            Assert.AreEqual(expected, ProfileValidation.NormalizeCode(typed));
+        }
+
+        [Test]
+        public void OnlyAFullSixDigitCodeIsAccepted()
+        {
+            Assert.IsNull(ProfileValidation.ValidateCode("123456"));
+            Assert.IsNull(ProfileValidation.ValidateCode("12 34 56"));
+            Assert.IsNotNull(ProfileValidation.ValidateCode("12345"));
+            Assert.IsNotNull(ProfileValidation.ValidateCode(""));
+            Assert.IsNotNull(ProfileValidation.ValidateCode(null));
+        }
+
+        // --- password reset ------------------------------------------------------------
+
+        [Test]
+        public void AValidPasswordResetHasNoErrors()
+        {
+            Assert.IsEmpty(ProfileValidation.ValidatePasswordReset("123456", "BrandNewPass2!", "BrandNewPass2!"));
+        }
+
+        [Test]
+        public void AResetReportsTheCodeAndPasswordsOnTheirOwnFields()
+        {
+            var errors = ProfileValidation.ValidatePasswordReset("12", "short", "different");
+
+            Assert.AreEqual(3, errors.Count);
+            Assert.IsTrue(errors.ContainsKey("code"));
+            Assert.IsTrue(errors.ContainsKey("newPassword"));
+            Assert.IsTrue(errors.ContainsKey("confirmPassword"));
+        }
+
+        [Test]
+        public void AResetNeedsAConfirmationThatMatches()
+        {
+            Assert.IsTrue(ProfileValidation.ValidatePasswordReset("123456", "BrandNewPass2!", "").ContainsKey("confirmPassword"));
+            Assert.IsTrue(ProfileValidation.ValidatePasswordReset("123456", "BrandNewPass2!", "BrandNewPass3!").ContainsKey("confirmPassword"));
+        }
     }
 }

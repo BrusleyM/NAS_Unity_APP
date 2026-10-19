@@ -1,7 +1,7 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/DealershipSelection.uss"/>
     <ui:VisualElement name="dealership-selection-root" class="dealership-root">
-        <ui:VisualElement name="dealership-header" class="dealership-header">
+        <ui:VisualElement name="dealership-header" class="dealership-header motion-item">
             <!-- Only shown when changing dealership from the side menu; on first choice there is nothing to go back to. -->
             <ui:Button name="dealership-back-button" text="&#8249; Back" class="dealership-back-button" style="display: none;"/>
             <ui:VisualElement class="dealership-header-text">
@@ -14,7 +14,7 @@
             <ui:Label name="dealership-status-label" text="Loading dealerships..." class="dealership-status-label"/>
             <ui:Button name="dealership-retry-button" text="Try again" class="dealership-retry-button"/>
         </ui:VisualElement>
-        <ui:VisualElement name="dealership-footer" class="dealership-footer">
+        <ui:VisualElement name="dealership-footer" class="dealership-footer motion-item">
             <ui:Label name="dealership-change-note" class="dealership-change-note" style="display: none;"/>
             <ui:Button name="dealership-continue-button" text="Continue" class="dealership-continue-button"/>
         </ui:VisualElement>

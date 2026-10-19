@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 
 namespace NAS.Core
 {
@@ -13,13 +14,11 @@ namespace NAS.Core
     // is currently active.
     public class LoadingOverlayController : MonoBehaviour
     {
-        private const float SpinDegreesPerSecond = 220f;
         private const string DefaultMessage = "Loading...";
 
         private VisualElement _root;
         private VisualElement _spinner;
         private Label _messageLabel;
-        private float _spinAngle;
         private bool _visible;
 
         private void OnEnable()
@@ -44,13 +43,6 @@ namespace NAS.Core
             EventBus.Unsubscribe<LoadingFinishedEvent>(OnLoadingFinished);
         }
 
-        private void Update()
-        {
-            if (!_visible || _spinner == null) return;
-            _spinAngle = (_spinAngle + SpinDegreesPerSecond * Time.deltaTime) % 360f;
-            _spinner.style.rotate = new StyleRotate(new Rotate(new Angle(_spinAngle, AngleUnit.Degree)));
-        }
-
         private void OnLoadingStarted(LoadingStartedEvent evt)
         {
             if (_messageLabel != null)
@@ -63,8 +55,19 @@ namespace NAS.Core
         private void SetVisible(bool visible)
         {
             _visible = visible;
-            if (_root != null)
-                _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            if (visible) UiMotion.Spin(_spinner);
+            else UiMotion.StopSpin(_spinner);
+            if (_root == null) return;
+            if (visible)
+            {
+                _root.style.display = DisplayStyle.Flex;
+                UiMotion.FadeIn(_root, 0.18f);
+            }
+            else
+            {
+                // Fade out, then take it out of the layout so it stops catching taps.
+                UiMotion.FadeOut(_root, 0.18f, () => { if (!_visible) _root.style.display = DisplayStyle.None; });
+            }
         }
     }
 }

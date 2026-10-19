@@ -20,6 +20,9 @@ namespace NAS.UI.Components
         private IReadOnlyList<CarData> _cars = Array.Empty<CarData>();
         private int _currentIndex;
 
+        /// <summary>Raised after the centre car changed through Next/Previous/GoTo, with how far it moved (+ forward, - back).</summary>
+        public event Action<int> IndexChanged;
+
         public int CurrentIndex => _currentIndex;
         public bool HasCars => _cars.Count > 0;
         public bool CanGoPrevious => HasCars && _currentIndex > 0;
@@ -69,6 +72,7 @@ namespace NAS.UI.Components
 
             _currentIndex++;
             RefreshCards();
+            IndexChanged?.Invoke(1);
         }
 
         public void Previous()
@@ -78,6 +82,7 @@ namespace NAS.UI.Components
 
             _currentIndex--;
             RefreshCards();
+            IndexChanged?.Invoke(-1);
         }
 
         public void GoTo(int index)
@@ -89,8 +94,10 @@ namespace NAS.UI.Components
             if (clamped == _currentIndex)
                 return;
 
+            var delta = clamped - _currentIndex;
             _currentIndex = clamped;
             RefreshCards();
+            IndexChanged?.Invoke(delta);
         }
 
         private void OnSlotClicked(int slot)

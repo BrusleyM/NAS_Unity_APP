@@ -11,7 +11,8 @@
         "GUID:7bae8718f8a7a439c84d62288ed461a2",
         "GUID:e154aba97dc1e4baca32ff60980c07c2",
         "GUID:8ebe78fd0ef814bf98a173bcec1b379f",
-        "GUID:00fe0a699a9874c13bb10b2d7bc0334f"
+        "GUID:00fe0a699a9874c13bb10b2d7bc0334f",
+        "NAS.Core.Motion"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

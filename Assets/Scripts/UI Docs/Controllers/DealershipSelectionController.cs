@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NAS.Core.Motion;
 using UnityEngine;
 using UnityEngine.UIElements;
 using NAS.Core;
@@ -132,6 +133,8 @@ namespace NAS.UI.Controllers
                 _cards[dealership.id] = card;
                 _list.Add(card);
             }
+
+            UiMotion.Stagger(_cards.Values, 0.07f, 0.04f, 14f);
         }
 
         private void ShowStatus(string message, bool showRetry)

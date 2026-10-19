@@ -97,6 +97,95 @@ namespace NAS.Core.Events
         }
     }
 
+    // ---- Emailed codes: verify the address, forgot password -----------------------------
+    // "Identifier" is whatever the customer typed to name their account: an email address or a username.
+
+    /// <summary>AuthController: the account has to verify its email before it can sign in (after register, or a sign-in that was refused for it). A new code has been sent.</summary>
+    public readonly struct EmailVerificationRequiredEvent
+    {
+        public readonly string Identifier;
+        /// <summary>The email address when it is known (just registered), so the screen can show where the code went; empty when only a username was typed.</summary>
+        public readonly string Email;
+        public EmailVerificationRequiredEvent(string identifier, string email)
+        {
+            Identifier = identifier;
+            Email = email ?? string.Empty;
+        }
+    }
+
+    /// <summary>Verify-email card: the customer entered the code.</summary>
+    public readonly struct VerifyEmailRequestedEvent
+    {
+        public readonly string Identifier;
+        public readonly string Code;
+        public VerifyEmailRequestedEvent(string identifier, string code)
+        {
+            Identifier = identifier;
+            Code = code;
+        }
+    }
+
+    /// <summary>Verify-email card: "Resend code".</summary>
+    public readonly struct ResendVerificationRequestedEvent
+    {
+        public readonly string Identifier;
+        public ResendVerificationRequestedEvent(string identifier) => Identifier = identifier;
+    }
+
+    /// <summary>AuthController: a verification or reset code has been sent (the server answers the same for any account, so this does not mean one exists).</summary>
+    public readonly struct CodeSentEvent
+    {
+        public readonly string Identifier;
+        public CodeSentEvent(string identifier) => Identifier = identifier;
+    }
+
+    /// <summary>Login card: "Forgot password?". The box's text is carried over so it need not be typed twice.</summary>
+    public readonly struct NavigateToForgotPasswordRequestedEvent
+    {
+        public readonly string Identifier;
+        public NavigateToForgotPasswordRequestedEvent(string identifier) => Identifier = identifier ?? string.Empty;
+    }
+
+    /// <summary>Forgot-password card: send me a code.</summary>
+    public readonly struct PasswordResetCodeRequestedEvent
+    {
+        public readonly string Identifier;
+        public PasswordResetCodeRequestedEvent(string identifier) => Identifier = identifier;
+    }
+
+    /// <summary>AuthController: the reset code went out. ParentPageController shows the code and new-password screen.</summary>
+    public readonly struct PasswordResetCodeSentEvent
+    {
+        public readonly string Identifier;
+        public PasswordResetCodeSentEvent(string identifier) => Identifier = identifier;
+    }
+
+    /// <summary>Reset-password card: the code and the new password.</summary>
+    public readonly struct ResetPasswordRequestedEvent
+    {
+        public readonly string Identifier;
+        public readonly string Code;
+        public readonly string NewPassword;
+        public readonly string ConfirmPassword;
+        public ResetPasswordRequestedEvent(string identifier, string code, string newPassword, string confirmPassword)
+        {
+            Identifier = identifier;
+            Code = code;
+            NewPassword = newPassword;
+            ConfirmPassword = confirmPassword;
+        }
+    }
+
+    /// <summary>AuthController: the password was changed. ParentPageController goes back to the login screen with a notice.</summary>
+    public readonly struct PasswordResetCompletedEvent { }
+
+    /// <summary>A positive message for the login screen (e.g. "Your password has been changed"). Published right after that screen is shown.</summary>
+    public readonly struct LoginNoticeEvent
+    {
+        public readonly string Message;
+        public LoginNoticeEvent(string message) => Message = message;
+    }
+
     // ---- Navigation --------------------------------------------------
     // Cards raise these when they want to move to another screen but shouldn't
     // know that ParentPageController (or anything else) is the thing listening.
@@ -361,4 +450,14 @@ namespace NAS.Core.Events
     /// is guaranteed to see the signed-out state.
     /// </summary>
     public readonly struct SessionEndedEvent { }
+
+    /// <summary>
+    /// Published by GameManager right after SessionEndedEvent when the sign-out was not the customer's choice: the server
+    /// rejected the login token (expired). The Login screen shows <see cref="Message"/> so the customer knows why.
+    /// </summary>
+    public readonly struct SessionExpiredEvent
+    {
+        public readonly string Message;
+        public SessionExpiredEvent(string message) { Message = message; }
+    }
 }

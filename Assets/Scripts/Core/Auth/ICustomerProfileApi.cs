@@ -9,6 +9,7 @@ namespace NAS.Core.Auth
     {
         void GetProfile(string accessToken, Action<ApiResult<CustomerDto>> completed);
         void UpdateProfile(UpdateProfileRequest request, string accessToken, Action<ApiResult<CustomerDto>> completed);
+        void ChangeUsername(ChangeUsernameRequest request, string accessToken, Action<ApiResult<CustomerDto>> completed);
         void ChangePassword(ChangePasswordRequest request, string accessToken, Action<ApiResult<EmptyResponse>> completed);
     }
 }

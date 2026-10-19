@@ -8,12 +8,12 @@
                 <ui:VisualElement class="menu-bar"/>
             </ui:Button>
             <ui:VisualElement class="header-text">
-                <ui:Label text="Select Your Car" class="title"/>
-                <ui:Label text="Choose a model to begin your AR experience" class="subtitle"/>
+                <ui:Label text="Select Your Car" class="title motion-item"/>
+                <ui:Label text="Choose a model to begin your AR experience" class="subtitle motion-item"/>
             </ui:VisualElement>
             <ui:VisualElement class="header-spacer"/>
         </ui:VisualElement>
-        <ui:VisualElement name="tools-container" class="tools-container">
+        <ui:VisualElement name="tools-container" class="tools-container motion-item">
             <ui:VisualElement name="types-container" class="dropdown-container">
                 <ui:Button name="type-dropdown-button" class="dropdown-button">
                     <ui:Label name="selected-type-label" text="All Types" class="dropdown-text"/>
@@ -31,7 +31,7 @@
         <ui:Label name="position-label" text="" class="position-label" style="display: none;"/>
         <ui:Label name="swipe-hint-label" text="&#8592; swipe to browse &#8594;" class="swipe-hint-label" style="display: none;"/>
         <ui:Label name="empty-state-label" text="No cars match your search." class="empty-state" style="display: none;"/>
-        <ui:Button name="start-ar-button" text="Start AR Experience" class="start-button"/>
+        <ui:Button name="start-ar-button" text="Start AR Experience" class="start-button motion-item"/>
         <ui:VisualElement name="dropdown-menu" class="dropdown-menu" style="display: none;"/>
     </ui:VisualElement>
 </ui:UXML>

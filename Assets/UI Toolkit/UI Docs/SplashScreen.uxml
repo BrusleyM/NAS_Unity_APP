@@ -2,13 +2,13 @@
     <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/SplashScreen.uss"/>
     <ui:VisualElement name="splash-root" class="splash-root">
         <ui:VisualElement name="splash-content" class="splash-content">
-            <ui:VisualElement name="splash-title-row" class="splash-title-row">
+            <ui:VisualElement name="splash-title-row" class="splash-title-row motion-item">
                 <ui:Label text="Neo" class="splash-title"/>
                 <ui:Label text="X" class="splash-title splash-title--accent"/>
                 <ui:Label text="R" class="splash-title"/>
             </ui:VisualElement>
-            <ui:Label text="AR CAR SHOWROOM" class="splash-subtitle"/>
-            <ui:Button name="splash-continue-button" text="Get Started" class="splash-cta-button"/>
+            <ui:Label text="AR CAR SHOWROOM" class="splash-subtitle motion-item"/>
+            <ui:Button name="splash-continue-button" text="Get Started" class="splash-cta-button motion-item"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

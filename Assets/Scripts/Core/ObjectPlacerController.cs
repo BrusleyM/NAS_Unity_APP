@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 using NAS.Core.Interfaces;
 using NAS.Core.Networking;
 using System.Collections;
@@ -97,6 +98,7 @@ namespace NAS.Core
 
             EventBus.Subscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Subscribe<ExitArRequestedEvent>(OnExitAr);
+            EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Subscribe<GestureCountsUpdatedEvent>(OnGestureCountsUpdated);
 
             if (_anchorManager != null)
@@ -111,6 +113,7 @@ namespace NAS.Core
         {
             EventBus.Unsubscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Unsubscribe<ExitArRequestedEvent>(OnExitAr);
+            EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Unsubscribe<GestureCountsUpdatedEvent>(OnGestureCountsUpdated);
 
             if (_anchorManager != null)
@@ -236,6 +239,16 @@ namespace NAS.Core
         private void OnExitAr(ExitArRequestedEvent evt)
         {
             SendArSessionTelemetry();
+            DisablePlacement();
+            if (_planeManager != null)
+                _planeManager.enabled = false;
+            if (_arSession != null)
+                _arSession.enabled = false;
+        }
+
+        // Signed out while in AR: stop AR the way leaving does, without sending AR telemetry (the session is gone).
+        private void OnSessionEnded(SessionEndedEvent evt)
+        {
             DisablePlacement();
             if (_planeManager != null)
                 _planeManager.enabled = false;
@@ -519,6 +532,7 @@ namespace NAS.Core
                         _currentPlacedInstance = placedInstance;
 
                         EventBus.Publish(new CarPlacedEvent(placedInstance));
+                        TransformMotion.PopIn(placedInstance.transform);   // settles in instead of appearing at full size
                         _placementCount++;
 
                         if (_preventMultiplePerPlane)

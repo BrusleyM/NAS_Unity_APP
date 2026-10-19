@@ -14,7 +14,12 @@ namespace NAS.Core
         public const int MinPasswordLength = 8;
         public const int MaxPasswordLength = 128;
 
+        public const int CodeLength = 6;
+
         private static readonly Regex CellNumberRegex = new Regex(@"^\+?[\d\s\-()]{7,15}$", RegexOptions.Compiled);
+        private static readonly Regex EmailRegex = new Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
+        // Same shape the server enforces: starts with a letter, then letters, digits, dot or underscore; 3 to 30 characters.
+        private static readonly Regex UsernameRegex = new Regex(@"^[a-z][a-z0-9._]{2,29}$", RegexOptions.Compiled);
 
         public static Dictionary<string, string> ValidateProfile(string firstName, string lastName, string cellNumber)
         {
@@ -53,6 +58,75 @@ namespace NAS.Core
                 errors["newPassword"] = "Password is too long.";
             else if (newPassword == currentPassword)
                 errors["newPassword"] = "Choose a password that is different from your current one.";
+
+            if (string.IsNullOrEmpty(confirmPassword))
+                errors["confirmPassword"] = "Please confirm your new password.";
+            else if (confirmPassword != newPassword)
+                errors["confirmPassword"] = "Passwords do not match.";
+
+            return errors;
+        }
+
+        /// <summary>
+        /// The sign-in box takes an email address or a username (an "@" means email). Returns what is wrong with it, or
+        /// null when it is acceptable. The server decides whether the account exists.
+        /// </summary>
+        public static string ValidateLoginIdentifier(string identifier)
+        {
+            if (string.IsNullOrWhiteSpace(identifier))
+                return "Enter your email or username.";
+
+            var typed = identifier.Trim();
+            if (typed.Contains("@"))
+                return EmailRegex.IsMatch(typed) ? null : "Enter a valid email address.";
+
+            return UsernameRegex.IsMatch(typed.ToLowerInvariant()) ? null : "Enter a valid username or your email address.";
+        }
+
+        public static string NormalizeUsername(string username) => (username ?? string.Empty).Trim().ToLowerInvariant();
+
+        /// <summary>The rule the server applies to a chosen username. Returns what is wrong, or null.</summary>
+        public static string ValidateUsername(string username)
+        {
+            var normalized = NormalizeUsername(username);
+            if (normalized.Length == 0)
+                return "Enter a username.";
+            return UsernameRegex.IsMatch(normalized)
+                ? null
+                : "Use 3 to 30 characters: start with a letter, then letters, numbers, dots or underscores.";
+        }
+
+        /// <summary>Keeps only the digits of whatever was typed or pasted into a code box, at most six.</summary>
+        public static string NormalizeCode(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return string.Empty;
+            var digits = new System.Text.StringBuilder(CodeLength);
+            foreach (var ch in raw)
+            {
+                if (ch >= '0' && ch <= '9') digits.Append(ch);
+                if (digits.Length == CodeLength) break;
+            }
+            return digits.ToString();
+        }
+
+        /// <summary>Null when the box holds a full six-digit code.</summary>
+        public static string ValidateCode(string code) =>
+            NormalizeCode(code).Length == CodeLength ? null : $"Enter the {CodeLength}-digit code from the email.";
+
+        public static Dictionary<string, string> ValidatePasswordReset(string code, string newPassword, string confirmPassword)
+        {
+            var errors = new Dictionary<string, string>();
+
+            var codeError = ValidateCode(code);
+            if (codeError != null)
+                errors["code"] = codeError;
+
+            if (string.IsNullOrEmpty(newPassword))
+                errors["newPassword"] = "Enter a new password.";
+            else if (newPassword.Length < MinPasswordLength)
+                errors["newPassword"] = $"Password must be at least {MinPasswordLength} characters.";
+            else if (newPassword.Length > MaxPasswordLength)
+                errors["newPassword"] = "Password is too long.";
 
             if (string.IsNullOrEmpty(confirmPassword))
                 errors["confirmPassword"] = "Please confirm your new password.";

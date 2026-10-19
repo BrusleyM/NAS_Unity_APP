@@ -1,0 +1,37 @@
+/* The pre-login screens for emailed codes (verify email, forgot password, reset password). They are login-style
+   cards, so they reuse LoginScreen.uss and ProfileScreens.uss for fields, buttons and messages; only what those do not cover is here. */
+
+.card-subtitle {
+    margin-top: -8px;
+    margin-bottom: 16px;
+    color: rgba(192, 192, 192, 0.7);
+    font-size: 13px;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+
+/* The one box a six-digit code is typed or pasted into: big, centred, spaced out so each digit can be checked. */
+.code-field .unity-text-field__input {
+    -unity-text-align: middle-center;
+    font-size: 24px;
+    letter-spacing: 8px;
+}
+
+/* "Resend code": a plain text button under the main one. */
+.text-link-button {
+    margin-top: 10px;
+    padding: 6px 8px;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    color: rgb(0, 212, 255);
+    font-size: 13px;
+    align-self: center;
+}
+
+.text-link-button:hover {
+    color: rgba(0, 212, 255, 0.8);
+}
+
+.text-link-button:disabled {
+    color: rgba(192, 192, 192, 0.45);
+}

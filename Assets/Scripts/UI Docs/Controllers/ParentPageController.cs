@@ -1,8 +1,10 @@
+using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 using UnityEngine.SceneManagement;
 using NAS.Core;
 using NAS.Core.Events;
+using NAS.Core.Motion;
 
 namespace NAS.UI.Controllers
 {
@@ -22,6 +24,10 @@ namespace NAS.UI.Controllers
         private const string EditProfileUxmlPath = "UI/EditProfile";
         private const string ChangePasswordUxmlPath = "UI/ChangePassword";
         private const string PrivacyUxmlPath = "UI/Privacy";
+        // The screens for emailed codes load from Resources too, so they needed no scene edit.
+        private const string VerifyEmailUxmlPath = "UI/VerifyEmail";
+        private const string ForgotPasswordUxmlPath = "UI/ForgotPassword";
+        private const string ResetPasswordUxmlPath = "UI/ResetPassword";
 
         [SerializeField] private VisualTreeAsset _splashCardUxml;
         [SerializeField] private VisualTreeAsset _loginCardUxml;
@@ -47,6 +53,7 @@ namespace NAS.UI.Controllers
             _cardContainer = root.Q<VisualElement>("center-container");
 
             SetBackgroundImage(root);
+            UiMotion.ApplyStyles(root);
             SubscribeToFlowEvents();
         }
 
@@ -109,6 +116,10 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
             EventBus.Subscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
+            EventBus.Subscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
+            EventBus.Subscribe<NavigateToForgotPasswordRequestedEvent>(OnNavigateToForgotPassword);
+            EventBus.Subscribe<PasswordResetCodeSentEvent>(OnPasswordResetCodeSent);
+            EventBus.Subscribe<PasswordResetCompletedEvent>(OnPasswordResetCompleted);
         }
 
         private void UnsubscribeFromFlowEvents()
@@ -128,6 +139,10 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
             EventBus.Unsubscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
+            EventBus.Unsubscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
+            EventBus.Unsubscribe<NavigateToForgotPasswordRequestedEvent>(OnNavigateToForgotPassword);
+            EventBus.Unsubscribe<PasswordResetCodeSentEvent>(OnPasswordResetCodeSent);
+            EventBus.Unsubscribe<PasswordResetCompletedEvent>(OnPasswordResetCompleted);
         }
 
         // Subscribed to GameManager's SessionAuthenticatedEvent/SessionCarSelectedEvent,
@@ -144,6 +159,25 @@ namespace NAS.UI.Controllers
         private void OnChangeDealershipRequested(ChangeDealershipRequestedEvent evt) => ShowDealershipSelectionScreen();
         private void OnNavigateToRegister(NavigateToRegisterRequestedEvent evt) => ShowRegisterCard();
         private void OnNavigateToLogin(NavigateToLoginRequestedEvent evt) => ShowLoginCard();
+
+        // ---- Emailed codes: verify the address, forgot password ----------------------------------
+        private void OnEmailVerificationRequired(EmailVerificationRequiredEvent evt) => ShowVerifyEmailCard(evt.Identifier, evt.Email);
+        private void OnNavigateToForgotPassword(NavigateToForgotPasswordRequestedEvent evt) => ShowForgotPasswordCard(evt.Identifier);
+
+        // The reset code screen also asks for a new code itself ("Resend code"), which raises this same event: it is
+        // already showing then, and must keep what has been typed, so it is not shown again.
+        private void OnPasswordResetCodeSent(PasswordResetCodeSentEvent evt)
+        {
+            if (GetComponent<ResetPasswordCardController>() != null) return;
+            ShowResetPasswordCard(evt.Identifier);
+        }
+
+        // Back to login with a message. The notice is published after the card exists, so it is there to receive it.
+        private void OnPasswordResetCompleted(PasswordResetCompletedEvent evt)
+        {
+            ShowLoginCard();
+            EventBus.Publish(new LoginNoticeEvent("Your password has been changed. Sign in with your new password."));
+        }
         // AR Scene is loaded additively exactly once per app session
         // (GameManager.IsArSceneLoaded) and never reloaded after that -
         // destroying and recreating ARSession/XROrigin via a full scene
@@ -202,7 +236,12 @@ namespace NAS.UI.Controllers
         private void OnChangePasswordRequested(ChangePasswordRequestedEvent evt) => ShowProfileScreen(ChangePasswordUxmlPath, ScreenNames.ChangePassword, typeof(ChangePasswordController));
         private void OnPrivacyRequested(PrivacyRequestedEvent evt) => ShowProfileScreen(PrivacyUxmlPath, ScreenNames.Privacy, typeof(PrivacyController));
         private void OnCloseProfileScreenRequested(CloseProfileScreenRequestedEvent evt) => ShowCarSelectionScreen();
-        private void OnSessionEnded(SessionEndedEvent evt) => ShowLoginCard();
+        // ShowUi() first: a sign-out can happen while the AR screen is up (an expired login), when this screen's UI is hidden.
+        private void OnSessionEnded(SessionEndedEvent evt)
+        {
+            ShowUi();
+            ShowLoginCard();
+        }
 
         // AR Scene is never unloaded (see OnCarSelected above), so this is
         // the only way back to a Main App card after the first AR visit -
@@ -229,6 +268,28 @@ namespace NAS.UI.Controllers
             }
         }
 
+        // The one way a screen replaces another: clear the container, clone the screen's UXML into it, add its controller,
+        // animate it in, announce it. (Each Show* method used to repeat these five steps.)
+        private MonoBehaviour SwapCard(VisualTreeAsset uxml, Type controllerType, string screenName)
+        {
+            _cardContainer.Clear();
+            RemoveCardControllers();
+            uxml.CloneTree(_cardContainer);
+            var controller = (MonoBehaviour)gameObject.AddComponent(controllerType);
+            UiMotion.Reveal(_cardContainer);
+            EventBus.Publish(new ScreenShownEvent(screenName));
+            return controller;
+        }
+
+        // A screen whose UXML is assigned in the Inspector falls back to Resources/UI/<name> when it is not.
+        private static VisualTreeAsset ResolveUxml(VisualTreeAsset assigned, string resourcePath)
+        {
+            if (assigned != null) return assigned;
+            var loaded = Resources.Load<VisualTreeAsset>(resourcePath);
+            if (loaded == null) Debug.LogError($"Screen UXML not found (Resources/{resourcePath}).");
+            return loaded;
+        }
+
         public void ShowSplashCard()
         {
             if (_splashCardUxml == null)
@@ -238,59 +299,54 @@ namespace NAS.UI.Controllers
                 DecideInitialScreen();
                 return;
             }
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            _splashCardUxml.CloneTree(_cardContainer);
-            gameObject.AddComponent<SplashScreenController>();
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.Splash));
+            SwapCard(_splashCardUxml, typeof(SplashScreenController), ScreenNames.Splash);
         }
 
         public void ShowLoginCard()
         {
             if (_loginCardUxml == null) return;
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            _loginCardUxml.CloneTree(_cardContainer);
-            gameObject.AddComponent<LoginCardController>();
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.Login));
+            SwapCard(_loginCardUxml, typeof(LoginCardController), ScreenNames.Login);
         }
 
         public void ShowRegisterCard()
         {
             if (_registerCardUxml == null) return;
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            _registerCardUxml.CloneTree(_cardContainer);
-            gameObject.AddComponent<RegisterCardController>();
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.Register));
+            SwapCard(_registerCardUxml, typeof(RegisterCardController), ScreenNames.Register);
+        }
+
+        public void ShowVerifyEmailCard(string identifier, string email)
+        {
+            var uxml = ResolveUxml(null, VerifyEmailUxmlPath);
+            if (uxml == null) return;
+            ((VerifyEmailCardController)SwapCard(uxml, typeof(VerifyEmailCardController), ScreenNames.VerifyEmail)).Initialize(identifier, email);
+        }
+
+        public void ShowForgotPasswordCard(string prefill)
+        {
+            var uxml = ResolveUxml(null, ForgotPasswordUxmlPath);
+            if (uxml == null) return;
+            ((ForgotPasswordCardController)SwapCard(uxml, typeof(ForgotPasswordCardController), ScreenNames.ForgotPassword)).Initialize(prefill);
+        }
+
+        public void ShowResetPasswordCard(string identifier)
+        {
+            var uxml = ResolveUxml(null, ResetPasswordUxmlPath);
+            if (uxml == null) return;
+            ((ResetPasswordCardController)SwapCard(uxml, typeof(ResetPasswordCardController), ScreenNames.ResetPassword)).Initialize(identifier);
         }
 
         public void ShowDealershipSelectionScreen()
         {
-            var uxml = _dealershipSelectionCardUxml != null
-                ? _dealershipSelectionCardUxml
-                : Resources.Load<VisualTreeAsset>("UI/DealershipSelection");
-            if (uxml == null)
-            {
-                Debug.LogError("Dealership selection UXML not found (Resources/UI/DealershipSelection).");
-                return;
-            }
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            uxml.CloneTree(_cardContainer);
-            gameObject.AddComponent<DealershipSelectionController>();
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.DealershipSelection));
+            var uxml = ResolveUxml(_dealershipSelectionCardUxml, "UI/DealershipSelection");
+            if (uxml == null) return;
+            SwapCard(uxml, typeof(DealershipSelectionController), ScreenNames.DealershipSelection);
         }
 
         public void ShowCarSelectionScreen()
         {
             if (_carSelectionCardUxml == null) return;
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            _carSelectionCardUxml.CloneTree(_cardContainer);
-            var carSelectionCtrl = gameObject.AddComponent<CarSelectionScreenController>();
+            var carSelectionCtrl = (CarSelectionScreenController)SwapCard(_carSelectionCardUxml, typeof(CarSelectionScreenController), ScreenNames.CarSelection);
             carSelectionCtrl.Initialize(_carCardUxml);
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.CarSelection));
         }
 
         public void ShowMenuDrawer()
@@ -314,59 +370,35 @@ namespace NAS.UI.Controllers
             gameObject.AddComponent<HamburgerDrawerController>();
         }
 
-        private void ShowProfileScreen(string uxmlPath, string screenName, System.Type controllerType)
+        private void ShowProfileScreen(string uxmlPath, string screenName, Type controllerType)
         {
-            var uxml = Resources.Load<VisualTreeAsset>(uxmlPath);
-            if (uxml == null)
-            {
-                Debug.LogError($"Screen UXML not found (Resources/{uxmlPath}).");
-                return;
-            }
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            uxml.CloneTree(_cardContainer);
-            gameObject.AddComponent(controllerType);
-            EventBus.Publish(new ScreenShownEvent(screenName));
+            var uxml = ResolveUxml(null, uxmlPath);
+            if (uxml == null) return;
+            SwapCard(uxml, controllerType, screenName);
         }
 
         public void ShowEstimatorCard()
         {
             if (_estimatorCardUxml == null) return;
-            _cardContainer.Clear();
-            RemoveCardControllers();
-            _estimatorCardUxml.CloneTree(_cardContainer);
-            gameObject.AddComponent<EstimatorCardController>();
-            EventBus.Publish(new ScreenShownEvent(ScreenNames.Estimator));
+            SwapCard(_estimatorCardUxml, typeof(EstimatorCardController), ScreenNames.Estimator);
         }
+
+        // Every screen's controller lives on this GameObject; only one is active at a time.
+        private static readonly Type[] CardControllerTypes =
+        {
+            typeof(SplashScreenController), typeof(LoginCardController), typeof(RegisterCardController),
+            typeof(DealershipSelectionController), typeof(CarSelectionScreenController), typeof(EstimatorCardController),
+            typeof(EditProfileController), typeof(ChangePasswordController), typeof(PrivacyController),
+            typeof(VerifyEmailCardController), typeof(ForgotPasswordCardController), typeof(ResetPasswordCardController)
+        };
 
         private void RemoveCardControllers()
         {
-            var splashCtrl = GetComponent<SplashScreenController>();
-            if (splashCtrl != null) Destroy(splashCtrl);
-
-            var loginCtrl = GetComponent<LoginCardController>();
-            if (loginCtrl != null) Destroy(loginCtrl);
-
-            var registerCtrl = GetComponent<RegisterCardController>();
-            if (registerCtrl != null) Destroy(registerCtrl);
-
-            var dealershipCtrl = GetComponent<DealershipSelectionController>();
-            if (dealershipCtrl != null) Destroy(dealershipCtrl);
-
-            var carSelectionCtrl = GetComponent<CarSelectionScreenController>();
-            if (carSelectionCtrl != null) Destroy(carSelectionCtrl);
-
-            var estimatorCtrl = GetComponent<EstimatorCardController>();
-            if (estimatorCtrl != null) Destroy(estimatorCtrl);
-
-            var editProfileCtrl = GetComponent<EditProfileController>();
-            if (editProfileCtrl != null) Destroy(editProfileCtrl);
-
-            var changePasswordCtrl = GetComponent<ChangePasswordController>();
-            if (changePasswordCtrl != null) Destroy(changePasswordCtrl);
-
-            var privacyCtrl = GetComponent<PrivacyController>();
-            if (privacyCtrl != null) Destroy(privacyCtrl);
+            foreach (var type in CardControllerTypes)
+            {
+                var controller = GetComponent(type);
+                if (controller != null) Destroy(controller);
+            }
 
             // Any screen change closes the side menu (it may have just launched this change).
             var drawerCtrl = GetComponent<HamburgerDrawerController>();
