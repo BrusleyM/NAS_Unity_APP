@@ -2,29 +2,28 @@ namespace NAS.Core
 {
     // Named AppEnvironment, not Environment, to avoid colliding with System.Environment.
     //
-    // The three-way split everyone talks about: Dev = Local / ApiDomain / ApiIp,
-    // Staging, Production. See EnvironmentPolicy for which one a build actually uses.
+    // Four places the app can point at. Each one's address lives in
+    // Resources/Config/ApiSettings.<Name>.asset, so nothing is wired in a scene or
+    // prefab. See EnvironmentPolicy for which one a build actually uses.
+    //
+    // The numbers are stored in the scene, so they never change: if a value is ever
+    // removed its number is left unused, and new values are appended.
     public enum AppEnvironment
     {
-        Local,
-        ApiDomain,
+        // This Mac's backend at http://localhost:5080. For the editor.
+        Local = 0,
 
-        // Same nginx HTTPS proxy as ApiDomain, addressed by raw LAN IP
-        // instead of the api.nas.test hostname - for physical-device testing
-        // on a network where nothing resolves that hostname (e.g. a phone
-        // hotspot without dnsmasq's device-DNS override set up). Needs its
-        // own ApiSettings asset since the IP changes per network/hotspot -
-        // update that asset's _baseUrl when the LAN IP changes, same as the
-        // dnsmasq LAN IP is per-network.
-        ApiIp,
+        // The local nginx HTTPS proxy, by hostname (api.nas.test). Only works on a device
+        // that resolves that name (this Mac via /etc/hosts, or a phone via dnsmasq).
+        ApiDomain = 1,
 
-        // Hosted backends. Unlike the three above (which all mean "a development setup on
-        // my own machine or network"), these use real HTTPS certificates, so certificate
-        // checking stays ON. Staging is a place to test a release before customers see it;
-        // Production is the live backend. Their ApiSettings live in Resources/Config
-        // (ApiSettings.Staging.asset / ApiSettings.Production.asset), so no scene wiring
-        // is needed. Values are appended, never renumbered: the scene stores the number.
-        Staging,
-        Production
+        // The same proxy, addressed by this Mac's LAN IP - for a phone on a network where
+        // nothing resolves api.nas.test (e.g. a hotspot). Edit ApiSettings.ApiIp.asset
+        // when the IP changes.
+        ApiIp = 2,
+
+        // The hosted staging backend, with a real HTTPS certificate (so certificate
+        // checking stays ON). Every release build uses this until a production backend exists.
+        Staging = 3
     }
 }

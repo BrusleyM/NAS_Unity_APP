@@ -20,33 +20,11 @@ namespace NAS.Core
         public static GameManager Instance { get; private set; }
 
         [Header("Environment")]
-        [Tooltip("If true, uses production Cognito settings; otherwise uses development basic credentials.")]
-        // Unused: kept only so the scene's serialized data is untouched.
-        [SerializeField] private bool _useProduction = false;
-
-        [Tooltip("Project-wide switch for which backend API endpoint to use. Local = http://localhost:5080 (safe default, always works). ApiDomain = https://api.nas.test:8443 via the optional local nginx proxy (NAS_Backend/nginx/README.md) - only works on a device that resolves api.nas.test (this Mac via /etc/hosts, or another device via dnsmasq's device-DNS override). ApiIp = same nginx proxy, addressed by raw LAN IP instead of the hostname - for a device on a network where nothing resolves api.nas.test (e.g. a phone hotspot without the dnsmasq override set up); update the ApiIp ApiSettings asset's URL when the LAN IP changes. Keep this at Local in anything committed/pushed, or teammates without that setup will have auth silently fail. AuthController reads this in Start() rather than owning its own toggle.")]
+        [Tooltip("Which backend the editor and Development builds talk to. Local = http://localhost:5080 (the editor on this Mac). ApiDomain = https://api.nas.test:8443 through the local nginx proxy (NAS_Backend/nginx/README.md), for a device that resolves that name. ApiIp = the same proxy by this Mac's LAN IP (edit Resources/Config/ApiSettings.ApiIp.asset when the IP changes), for a phone on a network where nothing resolves the name. Staging = the hosted staging backend. A release build ignores this and uses Staging (see EnvironmentPolicy). Each one's address is in Resources/Config/ApiSettings.<Name>.asset. Keep this at Local in anything committed.")]
         [SerializeField] private AppEnvironment _environment = AppEnvironment.Local;
         // What a build really uses, which is not always what is selected above: a release build
-        // ignores the dropdown (Production, or Staging with the NAS_STAGING_BUILD scripting
-        // define) so it cannot ship pointing at a developer machine. See EnvironmentPolicy.
-#if NAS_STAGING_BUILD
-        private const bool StagingBuild = true;
-#else
-        private const bool StagingBuild = false;
-#endif
-        public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild, StagingBuild);
-
-        [Tooltip("Used when CurrentEnvironment is Local. Single project-wide reference - every feature that talks to the API resolves its ApiSettings through EnvironmentResolver.Resolve(), which reads these three fields, instead of each controller wiring its own copies.")]
-        [SerializeField] private ApiSettings _apiSettings;
-        public ApiSettings ApiSettings => _apiSettings;
-
-        [Tooltip("Used when CurrentEnvironment is ApiDomain.")]
-        [SerializeField] private ApiSettings _apiDomainSettings;
-        public ApiSettings ApiDomainSettings => _apiDomainSettings;
-
-        [Tooltip("Used when CurrentEnvironment is ApiIp.")]
-        [SerializeField] private ApiSettings _apiIpSettings;
-        public ApiSettings ApiIpSettings => _apiIpSettings;
+        // ignores the dropdown so it cannot ship pointing at a developer machine. See EnvironmentPolicy.
+        public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild);
 
         [Header("Session")]
         public User CurrentUser { get; private set; }
