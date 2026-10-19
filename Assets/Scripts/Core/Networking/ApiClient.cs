@@ -8,6 +8,13 @@ namespace NAS.Core.Networking
 {
     public sealed class ApiClient
     {
+        /// <summary>
+        /// Raised (on the main thread, after the caller's own callback) when a request that carried a bearer token was
+        /// answered 401: the login expired or was rejected. GameManager listens and signs the user out. Static because every
+        /// API wrapper creates its own ApiClient, and the session is global.
+        /// </summary>
+        public static event Action SessionRejected;
+
         private readonly ApiSettings _settings;
         private readonly bool _trustAnyCertificate;
 
@@ -82,7 +89,10 @@ namespace NAS.Core.Networking
             }
             else
             {
+                var bearerSent = !string.IsNullOrEmpty(request.GetRequestHeader("Authorization"));
+                var expired = SessionExpiryPolicy.MeansSessionExpired(request.responseCode, bearerSent);
                 completed?.Invoke(ApiResult<TResponse>.FromError(ParseError(request)));
+                if (expired) SessionRejected?.Invoke();
             }
             request.Dispose();
         }

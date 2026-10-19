@@ -136,6 +136,16 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
 - The Privacy screen's text is a plain-language summary of what the app records today, written from the code. It makes no
   promises about retention or deletion - review it before release.
 
+## Expired login (session expiry)
+
+The login token lasts 60 minutes on the server. Every API wrapper goes through `ApiClient`; when a request that carried a
+bearer token is answered 401 (`SessionExpiryPolicy.MeansSessionExpired`, pure and unit-tested; a wrong password is a 401 without a
+token and a wrong current password is a 400, so neither signs anyone out), `ApiClient.SessionRejected` fires.
+`GameManager` listens, and if it still holds a token it publishes `LogoutRequestedEvent` (the normal sign-out pipeline) and then
+`SessionExpiredEvent`; the Login screen shows the message. Several requests can be rejected at once: only the first finds a
+token to drop. While in AR, `ArViewportController` and `ObjectPlacerController` stop on `SessionEndedEvent` without sending
+telemetry, and `ParentPageController` shows its own UI again before showing Login.
+
 ## UI motion (`Assets/Scripts/Core/Motion`, assembly `NAS.Core.Motion`)
 
 No third-party tween package. Two layers:
