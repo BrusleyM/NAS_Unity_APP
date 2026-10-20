@@ -41,6 +41,16 @@ namespace NAS.Core.Auth
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/forgot-password", request, completed));
         }
 
+        public void Refresh(RefreshTokenRequest request, Action<ApiResult<CustomerAuthResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/refresh", request, completed));
+        }
+
+        public void Logout(RefreshTokenRequest request, Action<ApiResult<EmptyResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/logout", request, completed));
+        }
+
         public void ResetPassword(ResetPasswordRequest request, Action<ApiResult<EmptyResponse>> completed)
         {
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/reset-password", request, completed));

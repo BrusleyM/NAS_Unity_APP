@@ -68,6 +68,8 @@ namespace NAS.Core
         // torn down and recreated on every "Main App" scene load; GameManager is the
         // DontDestroyOnLoad singleton that actually survives across it.
         public bool HasShownSplash { get; set; } = false;
+        // True while AuthController is signing back in with the saved refresh token at launch.
+        public bool RestoringSession { get; set; } = false;
         // Set once AR Scene has been additively loaded for the first time this
         // app session. AR Scene is deliberately never unloaded/reloaded after
         // that - re-entering AR toggles visibility/tracking instead of a full
@@ -158,6 +160,7 @@ namespace NAS.Core
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Subscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected += OnSessionRejected;
         }
 
@@ -171,6 +174,7 @@ namespace NAS.Core
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Unsubscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected -= OnSessionRejected;
         }
 
@@ -218,22 +222,20 @@ namespace NAS.Core
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
 
-        // "Sign Out" from the menu. Order matters: the screen the customer is leaving and the telemetry session
-        // both belong to THIS login, so they are closed (and sent with the old session id and token) before the
-        // state is cleared. Stop() closes the current screen visit for good; the Login screen shown next starts a
-        // fresh one. SessionEndedEvent goes out only after the state is cleared (see its doc comment).
-        // The server said our login token is no longer valid. Same clean-up as a sign-out (the existing pipeline: AuthController
-        // forgets the token, we clear the session, the router shows Login), then tell the Login screen why. Several
-        // requests can be rejected at once (catalog, telemetry, test drive...): only the first finds a token to drop,
-        // the rest see a signed-out session and do nothing.
+        // AuthController decides: swap the refresh token for a new access token, or sign out like a normal logout.
         private void OnSessionRejected()
         {
             if (string.IsNullOrEmpty(AccessToken)) return;
-            Debug.LogWarning("GameManager: the server rejected the login token - signing out.");
-            EventBus.Publish(new LogoutRequestedEvent());
-            EventBus.Publish(new SessionExpiredEvent(SessionExpiryPolicy.Notice));
+            EventBus.Publish(new AccessTokenRejectedEvent());
         }
 
+        private void OnAccessTokenRefreshed(AccessTokenRefreshedEvent evt)
+        {
+            if (CurrentUser != null) AccessToken = evt.AccessToken;
+        }
+
+        // "Sign Out" from the menu. The screen visit and telemetry session belong to THIS login, so they are closed (and
+        // sent with the old session id and token) before the state is cleared. SessionEndedEvent goes out only after that.
         private void OnLogoutRequested(LogoutRequestedEvent evt)
         {
             _screens?.Stop();

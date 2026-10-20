@@ -7,10 +7,8 @@ namespace NAS.Core.Networking
     {
         [SerializeField] private string _baseUrl = "http://localhost:5080";
         [SerializeField, Min(1)] private int _timeoutSeconds = 15;
-        [SerializeField] private bool _persistToken;
 
         public string BaseUrl => _baseUrl.TrimEnd('/');
         public int TimeoutSeconds => _timeoutSeconds;
-        public bool PersistToken => _persistToken;
     }
 }

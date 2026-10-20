@@ -16,6 +16,8 @@ namespace NAS.Core.Auth
         public User CurrentUser { get; private set; }
         public string AccessToken => _tokenStorage.AccessToken;
         public string ExpiresAtUtc => _tokenStorage.ExpiresAtUtc;
+        public string RefreshToken => _tokenStorage.RefreshToken;
+        public string RefreshExpiresAtUtc => _tokenStorage.RefreshExpiresAtUtc;
         public bool IsAuthenticated => CurrentUser != null && !string.IsNullOrWhiteSpace(AccessToken);
 
         public void Apply(NAS.Core.Auth.Dtos.CustomerAuthResponse response)
@@ -29,7 +31,7 @@ namespace NAS.Core.Auth
                 email = response.customer.email,
                 displayName = $"{response.customer.firstName} {response.customer.lastName}".Trim()
             };
-            _tokenStorage.Save(response.accessToken, response.expiresAtUtc);
+            _tokenStorage.Save(response.accessToken, response.expiresAtUtc, response.refreshToken, response.refreshExpiresAtUtc);
         }
 
         public void Logout()

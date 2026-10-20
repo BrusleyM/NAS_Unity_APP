@@ -4,6 +4,7 @@ using NAS.Core.Events;
 using NAS.Core.Models;
 using NAS.Core.Networking;
 using System.Collections.Generic;
+using System;
 using System.Text.RegularExpressions;
 using NAS.Core;
 
@@ -20,6 +21,8 @@ namespace NAS.Core.Auth
         private ICustomerAuthApi _authApi;
         private AuthSession _session;
         private bool _requestInProgress;
+        private bool _refreshing;
+        private float _nextCheckAt;
 
         private static readonly Regex EmailRegex = new Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
         private static readonly Regex CellNumberRegex = new Regex(@"^\+?[\d\s\-()]{7,15}$", RegexOptions.Compiled);
@@ -40,9 +43,92 @@ namespace NAS.Core.Auth
                 return;
             }
 
-            _session = new AuthSession(new TokenStorage(resolved.Settings.PersistToken));
+            _session = new AuthSession(new TokenStorage());
             _authApi = new CustomerAuthApi(this, resolved.Settings, resolved.TrustAnyCertificate);
             Debug.Log($"{LogPrefix} Ready. API base URL: {resolved.Settings.BaseUrl}{(resolved.TrustAnyCertificate ? " (cert override)" : "")}");
+
+            // A live session survives the scene reloading; only a cold start needs to sign back in.
+            var game = GameManager.Instance;
+            if (game != null && game.CurrentUser == null
+                && SessionRefreshPolicy.CanRestore(_session.RefreshToken, _session.RefreshExpiresAtUtc, DateTime.UtcNow))
+            {
+                game.RestoringSession = true;
+                Refresh(restoring: true);
+            }
+        }
+
+        // Swaps the refresh token for a fresh access token shortly before the old one lapses.
+        private void Update()
+        {
+            if (_session == null || _refreshing || Time.unscaledTime < _nextCheckAt) return;
+            _nextCheckAt = Time.unscaledTime + SessionRefreshPolicy.CheckSeconds;
+
+            var game = GameManager.Instance;
+            if (game == null || game.CurrentUser == null || string.IsNullOrEmpty(_session.RefreshToken)) return;
+            if (SessionRefreshPolicy.NeedsRefresh(_session.ExpiresAtUtc, DateTime.UtcNow))
+                Refresh(restoring: false);
+        }
+
+        private void Refresh(bool restoring)
+        {
+            if (_refreshing || _authApi == null || string.IsNullOrEmpty(_session.RefreshToken))
+            {
+                if (restoring) FinishRestore(false);
+                return;
+            }
+
+            _refreshing = true;
+            _authApi.Refresh(new RefreshTokenRequest { refreshToken = _session.RefreshToken }, result =>
+            {
+                _refreshing = false;
+                if (result.Success && result.Value?.customer != null && !string.IsNullOrWhiteSpace(result.Value.accessToken))
+                {
+                    _session.Apply(result.Value);
+                    if (restoring)
+                    {
+                        Debug.Log($"{LogPrefix} Signed back in with the saved login.");
+                        EventBus.Publish(new AuthSucceededEvent(_session.CurrentUser, _session.AccessToken));
+                        FinishRestore(true);
+                    }
+                    else
+                    {
+                        EventBus.Publish(new AccessTokenRefreshedEvent(_session.AccessToken));
+                    }
+                    return;
+                }
+
+                Debug.LogWarning($"{LogPrefix} Refresh failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
+                if (SessionRefreshPolicy.EndsSession(result.Error.StatusCode))
+                {
+                    _session.Logout();
+                    if (restoring) FinishRestore(false);
+                    else SignOutExpired();
+                    return;
+                }
+
+                // No connection, or the server had a problem: keep the saved login and try again shortly.
+                _nextCheckAt = Time.unscaledTime + SessionRefreshPolicy.RetrySeconds;
+                if (restoring) FinishRestore(false);
+            });
+        }
+
+        private static void FinishRestore(bool restored)
+        {
+            if (GameManager.Instance != null) GameManager.Instance.RestoringSession = false;
+            EventBus.Publish(new SessionRestoreFinishedEvent(restored));
+        }
+
+        private void HandleAccessTokenRejected(AccessTokenRejectedEvent evt)
+        {
+            if (_session == null || string.IsNullOrEmpty(_session.RefreshToken)) SignOutExpired();
+            else Refresh(restoring: false);
+        }
+
+        private void SignOutExpired()
+        {
+            _session?.Logout();
+            EventBus.Publish(new LogoutRequestedEvent());
+            EventBus.Publish(new SessionExpiredEvent(SessionExpiryPolicy.Notice));
         }
 
         private void OnEnable()
@@ -50,6 +136,7 @@ namespace NAS.Core.Auth
             EventBus.Subscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Subscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Subscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Subscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
             EventBus.Subscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
             EventBus.Subscribe<PasswordResetCodeRequestedEvent>(HandlePasswordResetCodeRequested);
@@ -61,13 +148,14 @@ namespace NAS.Core.Auth
             EventBus.Unsubscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Unsubscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Unsubscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Unsubscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
             EventBus.Unsubscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
             EventBus.Unsubscribe<PasswordResetCodeRequestedEvent>(HandlePasswordResetCodeRequested);
             EventBus.Unsubscribe<ResetPasswordRequestedEvent>(HandleResetPasswordRequested);
         }
 
-        // Forgets the stored token. GameManager clears the rest of the session on the same event.
+        // Ends this sign-in on the server and forgets the saved tokens. GameManager clears the rest of the session on the same event.
         private void HandleLogoutRequested(LogoutRequestedEvent evt) => Logout();
 
 private void HandleLoginRequested(LoginRequestedEvent evt)
@@ -332,6 +420,9 @@ private void HandleRegisterRequested(RegisterRequestedEvent evt)
         public void Logout()
         {
             Debug.Log($"{LogPrefix} Logout requested.");
+            var refreshToken = _session?.RefreshToken;
+            if (!string.IsNullOrEmpty(refreshToken) && _authApi != null)
+                _authApi.Logout(new RefreshTokenRequest { refreshToken = refreshToken }, _ => { });
             _session?.Logout();
         }
 

@@ -77,7 +77,7 @@ namespace NAS.UI.Controllers
 
             _api ??= new CustomerProfileApi(this, resolved.Settings, resolved.TrustAnyCertificate);
             SetBusy(true);
-            _api.ChangePassword(new ChangePasswordRequest { currentPassword = _current.value, newPassword = _new.value }, token, result =>
+            _api.ChangePassword(new ChangePasswordRequest { currentPassword = _current.value, newPassword = _new.value, refreshToken = new TokenStorage().RefreshToken }, token, result =>
             {
                 if (this == null) return;
                 SetBusy(false);

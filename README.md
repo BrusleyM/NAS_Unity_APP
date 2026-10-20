@@ -58,8 +58,14 @@ from UI controllers — `Assets/Scripts/Core/Networking/ApiClient.cs` wraps
   and `api/customer/auth/login` against `ApiSettings.BaseUrl` (defaults to
   `http://localhost:5080`), and `AuthController` maps the result into
   `AuthSucceededEvent`/`AuthFailedEvent`.
-- The access token is persisted via `TokenStorage`/`AuthSession`
-  (`Assets/Scripts/Core/Auth/`).
+- The sign-in stays saved across launches (`TokenStorage`/`AuthSession`,
+  `Assets/Scripts/Core/Auth/`, in PlayerPrefs for now). Login also returns a
+  30-day refresh token. At launch `AuthController` swaps it for a new access
+  token and goes straight to dealership selection (the splash waits for it); while
+  signed in it swaps again five minutes before the hour-long access token lapses
+  (`SessionRefreshPolicy`), and when the server rejects a token. Only the
+  server refusing the refresh token (401) signs the customer out; no connection
+  keeps the saved login. Sign Out revokes it on the server.
 
 **Not done yet:**
 

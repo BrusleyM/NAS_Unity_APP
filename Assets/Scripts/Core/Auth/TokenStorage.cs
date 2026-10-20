@@ -2,45 +2,48 @@ using UnityEngine;
 
 namespace NAS.Core.Auth
 {
+    // The saved sign-in, in PlayerPrefs (plain text on the device; secure storage is a later step).
     public sealed class TokenStorage
     {
         private const string AccessTokenKey = "nas.customer.access_token";
         private const string ExpiryKey = "nas.customer.expires_at_utc";
+        private const string RefreshTokenKey = "nas.customer.refresh_token";
+        private const string RefreshExpiryKey = "nas.customer.refresh_expires_at_utc";
 
-        private readonly bool _persist;
-        private string _accessToken;
-        private string _expiresAtUtc;
-
-        public TokenStorage(bool persist)
+        public TokenStorage()
         {
-            _persist = persist;
-            if (_persist)
-            {
-                _accessToken = PlayerPrefs.GetString(AccessTokenKey, null);
-                _expiresAtUtc = PlayerPrefs.GetString(ExpiryKey, null);
-            }
+            AccessToken = PlayerPrefs.GetString(AccessTokenKey, null);
+            ExpiresAtUtc = PlayerPrefs.GetString(ExpiryKey, null);
+            RefreshToken = PlayerPrefs.GetString(RefreshTokenKey, null);
+            RefreshExpiresAtUtc = PlayerPrefs.GetString(RefreshExpiryKey, null);
         }
 
-        public string AccessToken => _accessToken;
-        public string ExpiresAtUtc => _expiresAtUtc;
+        public string AccessToken { get; private set; }
+        public string ExpiresAtUtc { get; private set; }
+        public string RefreshToken { get; private set; }
+        public string RefreshExpiresAtUtc { get; private set; }
 
-        public void Save(string accessToken, string expiresAtUtc)
+        public void Save(string accessToken, string expiresAtUtc, string refreshToken, string refreshExpiresAtUtc)
         {
-            _accessToken = accessToken;
-            _expiresAtUtc = expiresAtUtc;
-            if (!_persist) return;
+            AccessToken = accessToken;
+            ExpiresAtUtc = expiresAtUtc;
+            RefreshToken = refreshToken;
+            RefreshExpiresAtUtc = refreshExpiresAtUtc;
 
             PlayerPrefs.SetString(AccessTokenKey, accessToken ?? string.Empty);
             PlayerPrefs.SetString(ExpiryKey, expiresAtUtc ?? string.Empty);
+            PlayerPrefs.SetString(RefreshTokenKey, refreshToken ?? string.Empty);
+            PlayerPrefs.SetString(RefreshExpiryKey, refreshExpiresAtUtc ?? string.Empty);
             PlayerPrefs.Save();
         }
 
         public void Clear()
         {
-            _accessToken = null;
-            _expiresAtUtc = null;
+            AccessToken = ExpiresAtUtc = RefreshToken = RefreshExpiresAtUtc = null;
             PlayerPrefs.DeleteKey(AccessTokenKey);
             PlayerPrefs.DeleteKey(ExpiryKey);
+            PlayerPrefs.DeleteKey(RefreshTokenKey);
+            PlayerPrefs.DeleteKey(RefreshExpiryKey);
             PlayerPrefs.Save();
         }
     }
