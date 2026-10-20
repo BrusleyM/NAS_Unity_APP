@@ -8,7 +8,7 @@ namespace NAS.Core.Auth.Dtos
     {
         public string currentPassword;
         public string newPassword;
-        // This device's refresh token, so it stays signed in while other devices are signed out.
+        // This device's token, so it stays signed in.
         public string refreshToken;
     }
 }

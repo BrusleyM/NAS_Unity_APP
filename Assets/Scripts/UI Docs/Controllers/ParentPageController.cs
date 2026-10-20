@@ -235,7 +235,6 @@ namespace NAS.UI.Controllers
             DecideInitialScreen();
         }
 
-        // Signing back in with the saved login: carry on from wherever it leaves us.
         private void OnSessionRestoreFinished(SessionRestoreFinishedEvent evt)
         {
             if (!_waitingForRestore) return;

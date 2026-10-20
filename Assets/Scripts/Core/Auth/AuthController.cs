@@ -47,7 +47,7 @@ namespace NAS.Core.Auth
             _authApi = new CustomerAuthApi(this, resolved.Settings, resolved.TrustAnyCertificate);
             Debug.Log($"{LogPrefix} Ready. API base URL: {resolved.Settings.BaseUrl}{(resolved.TrustAnyCertificate ? " (cert override)" : "")}");
 
-            // A live session survives the scene reloading; only a cold start needs to sign back in.
+            // A live session survives a scene reload; only a cold start signs back in.
             var game = GameManager.Instance;
             if (game != null && game.CurrentUser == null
                 && SessionRefreshPolicy.CanRestore(_session.RefreshToken, _session.RefreshExpiresAtUtc, DateTime.UtcNow))
@@ -57,7 +57,6 @@ namespace NAS.Core.Auth
             }
         }
 
-        // Swaps the refresh token for a fresh access token shortly before the old one lapses.
         private void Update()
         {
             if (_session == null || _refreshing || Time.unscaledTime < _nextCheckAt) return;
@@ -106,7 +105,7 @@ namespace NAS.Core.Auth
                     return;
                 }
 
-                // No connection, or the server had a problem: keep the saved login and try again shortly.
+                // No connection or a server error: keep the saved login and retry.
                 _nextCheckAt = Time.unscaledTime + SessionRefreshPolicy.RetrySeconds;
                 if (restoring) FinishRestore(false);
             });
@@ -155,7 +154,6 @@ namespace NAS.Core.Auth
             EventBus.Unsubscribe<ResetPasswordRequestedEvent>(HandleResetPasswordRequested);
         }
 
-        // Ends this sign-in on the server and forgets the saved tokens. GameManager clears the rest of the session on the same event.
         private void HandleLogoutRequested(LogoutRequestedEvent evt) => Logout();
 
 private void HandleLoginRequested(LoginRequestedEvent evt)

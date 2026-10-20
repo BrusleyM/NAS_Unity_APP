@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace NAS.Core.Auth
 {
-    // The saved sign-in, in PlayerPrefs (plain text on the device; secure storage is a later step).
+    // PlayerPrefs is plain text on the device; secure storage comes later.
     public sealed class TokenStorage
     {
         private const string AccessTokenKey = "nas.customer.access_token";

@@ -68,7 +68,6 @@ namespace NAS.Core
         // torn down and recreated on every "Main App" scene load; GameManager is the
         // DontDestroyOnLoad singleton that actually survives across it.
         public bool HasShownSplash { get; set; } = false;
-        // True while AuthController is signing back in with the saved refresh token at launch.
         public bool RestoringSession { get; set; } = false;
         // Set once AR Scene has been additively loaded for the first time this
         // app session. AR Scene is deliberately never unloaded/reloaded after
@@ -222,7 +221,6 @@ namespace NAS.Core
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
 
-        // AuthController decides: swap the refresh token for a new access token, or sign out like a normal logout.
         private void OnSessionRejected()
         {
             if (string.IsNullOrEmpty(AccessToken)) return;
