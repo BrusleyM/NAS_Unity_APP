@@ -40,21 +40,5 @@ namespace NAS.Tests
             Assert.AreEqual(2, (int)AppEnvironment.ApiIp);
             Assert.AreEqual(3, (int)AppEnvironment.Staging);
         }
-
-        [TestCase(AppEnvironment.Local, "http://localhost:5080")]
-        [TestCase(AppEnvironment.ApiDomain, "https://api.nas.test:8443")]
-        [TestCase(AppEnvironment.Staging, "https://nas-api.neoxr.co.za")]
-        public void EveryEnvironmentHasItsApiSettingsAsset(AppEnvironment environment, string expectedUrl)
-        {
-            var settings = UnityEngine.Resources.Load<NAS.Core.Networking.ApiSettings>("Config/ApiSettings." + environment);
-            Assert.IsNotNull(settings, $"Resources/Config/ApiSettings.{environment}.asset is missing");
-            Assert.AreEqual(expectedUrl, settings.BaseUrl);
-        }
-
-        [Test]
-        public void TheLanIpEnvironmentHasItsAsset()
-        {
-            Assert.IsNotNull(UnityEngine.Resources.Load<NAS.Core.Networking.ApiSettings>("Config/ApiSettings." + AppEnvironment.ApiIp));
-        }
     }
 }

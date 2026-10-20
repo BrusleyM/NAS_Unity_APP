@@ -30,6 +30,8 @@ namespace NAS.UI.Controllers
         private const string ResetPasswordUxmlPath = "UI/ResetPassword";
 
         [SerializeField] private VisualTreeAsset _splashCardUxml;
+        private bool _splashShowing;
+        private bool _waitingForRestore;
         [SerializeField] private VisualTreeAsset _loginCardUxml;
         [SerializeField] private VisualTreeAsset _registerCardUxml;
         // Optional: falls back to Resources/UI/DealershipSelection.uxml when
@@ -108,6 +110,7 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<ChangeDealershipRequestedEvent>(OnChangeDealershipRequested);
             EventBus.Subscribe<SessionCarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<SplashDismissedEvent>(OnSplashDismissed);
+            EventBus.Subscribe<SessionRestoreFinishedEvent>(OnSessionRestoreFinished);
             EventBus.Subscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Subscribe<ReturnToCarSelectionRequestedEvent>(OnReturnToCarSelectionRequested);
             EventBus.Subscribe<MenuRequestedEvent>(OnMenuRequested);
@@ -131,6 +134,7 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<ChangeDealershipRequestedEvent>(OnChangeDealershipRequested);
             EventBus.Unsubscribe<SessionCarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<SplashDismissedEvent>(OnSplashDismissed);
+            EventBus.Unsubscribe<SessionRestoreFinishedEvent>(OnSessionRestoreFinished);
             EventBus.Unsubscribe<ExitArRequestedEvent>(OnExitAr);
             EventBus.Unsubscribe<ReturnToCarSelectionRequestedEvent>(OnReturnToCarSelectionRequested);
             EventBus.Unsubscribe<MenuRequestedEvent>(OnMenuRequested);
@@ -154,7 +158,11 @@ namespace NAS.UI.Controllers
         // subscribing to the raw events directly here caused a real bug.
         // Login always leads to "where are you buying from?" - GameManager clears
         // SelectedDealership on every login, so there's nothing to skip past.
-        private void OnAuthSucceeded(SessionAuthenticatedEvent evt) => ShowDealershipSelectionScreen();
+        private void OnAuthSucceeded(SessionAuthenticatedEvent evt)
+        {
+            if (_splashShowing || _waitingForRestore) return;
+            ShowDealershipSelectionScreen();
+        }
         private void OnDealershipSelected(SessionDealershipSelectedEvent evt) => ShowCarSelectionScreen();
         private void OnChangeDealershipRequested(ChangeDealershipRequestedEvent evt) => ShowDealershipSelectionScreen();
         private void OnNavigateToRegister(NavigateToRegisterRequestedEvent evt) => ShowRegisterCard();
@@ -216,7 +224,21 @@ namespace NAS.UI.Controllers
 
         private void OnSplashDismissed(SplashDismissedEvent evt)
         {
-            GameManager.Instance.HasShownSplash = true;
+            var game = GameManager.Instance;
+            game.HasShownSplash = true;
+            _splashShowing = false;
+            if (game.RestoringSession)
+            {
+                _waitingForRestore = true;
+                return;
+            }
+            DecideInitialScreen();
+        }
+
+        private void OnSessionRestoreFinished(SessionRestoreFinishedEvent evt)
+        {
+            if (!_waitingForRestore) return;
+            _waitingForRestore = false;
             DecideInitialScreen();
         }
 
@@ -299,6 +321,7 @@ namespace NAS.UI.Controllers
                 DecideInitialScreen();
                 return;
             }
+            _splashShowing = true;
             SwapCard(_splashCardUxml, typeof(SplashScreenController), ScreenNames.Splash);
         }
 

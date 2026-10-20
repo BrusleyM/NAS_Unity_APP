@@ -460,4 +460,21 @@ namespace NAS.Core.Events
         public readonly string Message;
         public SessionExpiredEvent(string message) { Message = message; }
     }
+
+    /// <summary>A new access token for the same customer, so nothing navigates.</summary>
+    public readonly struct AccessTokenRefreshedEvent
+    {
+        public readonly string AccessToken;
+        public AccessTokenRefreshedEvent(string accessToken) { AccessToken = accessToken; }
+    }
+
+    /// <summary>The server refused the access token; AuthController tries the refresh token before signing out.</summary>
+    public readonly struct AccessTokenRejectedEvent { }
+
+    /// <summary>Signing back in with the saved login at launch has finished.</summary>
+    public readonly struct SessionRestoreFinishedEvent
+    {
+        public readonly bool Restored;
+        public SessionRestoreFinishedEvent(bool restored) { Restored = restored; }
+    }
 }

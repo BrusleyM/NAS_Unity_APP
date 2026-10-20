@@ -35,6 +35,7 @@ namespace NAS.Core
         public bool ReturnToEstimator { get; set; } = false;
         // Lives here, not on ParentPageController, because that is recreated on every Main App load.
         public bool HasShownSplash { get; set; } = false;
+        public bool RestoringSession { get; set; } = false;
         // The AR scene is loaded once and never unloaded: re-entering AR toggles it, because recreating
         // ARSession/XROrigin caused a black camera feed on the second entry.
         public bool IsArSceneLoaded { get; set; } = false;
@@ -79,6 +80,7 @@ namespace NAS.Core
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Subscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected += OnSessionRejected;
         }
 
@@ -92,6 +94,7 @@ namespace NAS.Core
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Unsubscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected -= OnSessionRejected;
         }
 
@@ -128,14 +131,15 @@ namespace NAS.Core
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
 
-        // The server rejected our token: sign out like a normal logout, then tell Login why.
-        // Several requests can be rejected at once; only the first finds a token to drop.
         private void OnSessionRejected()
         {
             if (string.IsNullOrEmpty(AccessToken)) return;
-            Debug.LogWarning("GameManager: the server rejected the login token - signing out.");
-            EventBus.Publish(new LogoutRequestedEvent());
-            EventBus.Publish(new SessionExpiredEvent(SessionExpiryPolicy.Notice));
+            EventBus.Publish(new AccessTokenRejectedEvent());
+        }
+
+        private void OnAccessTokenRefreshed(AccessTokenRefreshedEvent evt)
+        {
+            if (CurrentUser != null) AccessToken = evt.AccessToken;
         }
 
         // Close the screen visit and telemetry session first: they belong to this login and
