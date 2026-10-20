@@ -20,6 +20,7 @@ namespace NAS.Core
         private VisualElement _spinner;
         private Label _messageLabel;
         private bool _visible;
+        private string _message = DefaultMessage;
 
         private void OnEnable()
         {
@@ -34,20 +35,28 @@ namespace NAS.Core
             SetVisible(false);
 
             EventBus.Subscribe<LoadingStartedEvent>(OnLoadingStarted);
+            EventBus.Subscribe<LoadingProgressEvent>(OnLoadingProgress);
             EventBus.Subscribe<LoadingFinishedEvent>(OnLoadingFinished);
         }
 
         private void OnDisable()
         {
             EventBus.Unsubscribe<LoadingStartedEvent>(OnLoadingStarted);
+            EventBus.Unsubscribe<LoadingProgressEvent>(OnLoadingProgress);
             EventBus.Unsubscribe<LoadingFinishedEvent>(OnLoadingFinished);
         }
 
         private void OnLoadingStarted(LoadingStartedEvent evt)
         {
-            if (_messageLabel != null)
-                _messageLabel.text = string.IsNullOrEmpty(evt.Message) ? DefaultMessage : evt.Message;
+            _message = string.IsNullOrEmpty(evt.Message) ? DefaultMessage : evt.Message;
+            if (_messageLabel != null) _messageLabel.text = _message;
             SetVisible(true);
+        }
+
+        private void OnLoadingProgress(LoadingProgressEvent evt)
+        {
+            if (_messageLabel == null || !_visible || evt.Fraction <= 0f) return;
+            _messageLabel.text = $"{_message} {Mathf.FloorToInt(evt.Fraction * 100f)}%";
         }
 
         private void OnLoadingFinished(LoadingFinishedEvent evt) => SetVisible(false);

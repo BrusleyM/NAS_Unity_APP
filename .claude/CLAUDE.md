@@ -548,12 +548,18 @@ the Inspector, so this specifically matters for anything that *is* Inspector-wir
 ## Tigris storage (3D models)
 
 **The app holds no storage credentials.** To show a car, `SelectedCarModelLoader` calls
-`GameManager.DownloadModel(vehicleId)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
+`GameManager.DownloadModel(vehicleId, modelKey)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
 returns a short-lived pre-signed link for exactly that vehicle's file, (2) a plain `UnityWebRequest` fetches the file from
 the link. The API signs with the environment's read-only Tigris key, which lives in the API host's settings
 (`Storage__*`), never in this repo or the build. Which bucket is used follows from which API the app talks to
 (`CurrentEnvironment`), so there is no storage config in the app at all. Full convention, key handling and the
 backend endpoint: `NAS_Backend/docs/STORAGE.md`. For **3D AR assets only**, not 2D catalog thumbnails.
+
+**Models are cached on the device** (`ModelDiskCache` in `persistentDataPath/models`, 500 MB, least recently used out first; rules in
+`ModelCacheRules`). A cached car is still asked for a link, then fetched with `If-None-Match`: Tigris answers 304 (use the file) or sends
+the new one when the dealer replaced it. A download goes to `<name>.glb.part`; a dropped connection resumes with `Range` + `If-Match`
+(412/416 restart from zero), 3 attempts. If the API or network is down but the car is cached, the cached copy is used.
+`LoadingProgressEvent` drives the percentage on the loading overlay. Tigris' 206/304/412/416 behaviour was checked against the dev bucket.
 
 Uploading is not done from the app or the Editor: use `NAS_Backend/tools/tigris-upload-model.sh`.
 A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API

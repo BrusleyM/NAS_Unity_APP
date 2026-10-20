@@ -49,6 +49,7 @@ namespace NAS.Core
         // load failure is not real placement behaviour, so ObjectPlacerController skips its AR telemetry.
         public bool CurrentArModelLoadSucceeded { get; set; } = false;
 
+        private const long ModelCacheBytes = 500L * 1024 * 1024;
         private ModelDownloader _modelDownloader;
 
         // Visits that finish before the telemetry session exists (splash, login, register) wait in _pendingVisits.
@@ -67,7 +68,7 @@ namespace NAS.Core
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
-            _modelDownloader = new ModelDownloader(this);
+            _modelDownloader = new ModelDownloader(this, new ModelDiskCache(System.IO.Path.Combine(Application.persistentDataPath, "models"), ModelCacheBytes));
             _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
             // Subscribed in Awake, not OnEnable, so GameManager is ready before anything else in the scene.
@@ -352,10 +353,10 @@ namespace NAS.Core
         }
 
         // The API signs a short-lived link for the model; the app holds no storage credentials (see ModelDownloader).
-        public Task<Result<byte[]>> DownloadModel(int vehicleId)
+        public Task<Result<byte[]>> DownloadModel(int vehicleId, string modelKey)
         {
             if (string.IsNullOrEmpty(AccessToken)) return Task.FromResult(Result<byte[]>.Failure("Not signed in."));
-            return _modelDownloader.DownloadAsync(vehicleId, AccessToken);
+            return _modelDownloader.DownloadAsync(vehicleId, modelKey, AccessToken);
         }
     }
 }
