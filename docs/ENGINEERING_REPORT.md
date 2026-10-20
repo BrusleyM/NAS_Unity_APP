@@ -247,8 +247,7 @@ The commits were made on separate branches because the project owner had not yet
 2. **No retry after a failed model load.** After any failure the placeholder is used for the rest of the AR session; recovery means leaving and re-entering the scene. The right behaviour (button, automatic retry, number of attempts) is a product decision, not yet taken.
 3. **Download size.** One candidate model is 99.3 MB. On a mobile connection that is a long wait before the car appears, and a failed or abandoned wait is exactly what `ar_load_failed` records. Reducing its textures or geometry should precede shipping it.
 4. **Direct `GameManager.Instance` reads** remain in several scripts (coupling and testability, not a known defect).
-5. **Storage environment flag.** `_useProduction` on `GameManager` currently only changes a log line; storage always uses the development configuration. It should follow the environment enum used for the API address once a second storage environment exists.
-6. **Unity tooling churn.** `Packages/packages-lock.json` changes whenever the editor opens the project and was deliberately not committed.
+5. **Unity tooling churn.** `Packages/packages-lock.json` changes whenever the editor opens the project and was deliberately not committed.
 
 ## 6. Ethics, privacy and impact
 

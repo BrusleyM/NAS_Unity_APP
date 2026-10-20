@@ -275,23 +275,22 @@ the simplest default for anyone without the nginx/mkcert setup running;
 makes auth fail silently. See the README's "Optional: HTTPS for testing on a
 physical device" section for the full explanation.
 
-**Dev / Staging / Production.** `AppEnvironment` has five values:
-`Local`, `ApiDomain`, `ApiIp` (all "Dev": my machine, or my machine through
-the nginx proxy) plus `Staging` and `Production` (hosted backends with real
-certificates). Which one a build **actually uses** is
+**Environments.** `AppEnvironment` has four values: `Local`
+(`http://localhost:5080`, the editor), `ApiDomain` (`https://api.nas.test:8443`
+through the nginx proxy), `ApiIp` (the same proxy by this Mac's LAN IP, for a
+phone on a network that cannot resolve the name; edit its asset when the IP
+changes) and `Staging` (the SmarterASP.NET site at `https://nas-api.neoxr.co.za`,
+real certificate). Each one's address is
+`Resources/Config/ApiSettings.<Env>.asset`, loaded by `EnvironmentResolver`
+(no Inspector wiring to forget); a missing asset is a loud error, never a silent
+fall back. Which one a build **actually uses** is
 `EnvironmentPolicy.Effective(...)` (pure logic, EditMode-tested): Editor and
 Development builds honour `GameManager._environment`; a **release build
-ignores it** and is `Production` — or `Staging` when built with the scripting
-define `NAS_STAGING_BUILD` — so a release can never ship pointing at
-localhost. `GameManager.CurrentEnvironment` returns the effective value, and
-`EnvironmentResolver` loads Staging/Production `ApiSettings` from
-`Resources/Config/ApiSettings.<Env>.asset` (no Inspector wiring to forget);
-a missing asset is a loud error, never a silent fall back to Local.
-`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Only Dev and Staging
-really exist: Staging is the SmarterASP.NET site at `https://nas-api.neoxr.co.za`
-(one site, one Postgres database on the trial plan). `Production` is defined but
-not created, so its asset currently points at the same host; when production is
-built, give it its own hostname and change that one asset. The full standard is
+ignores it** and is `Staging`, so a release can never ship pointing at
+localhost. `TrustAnyCertificate` is true only for ApiDomain/ApiIp. There is no
+Production yet: when it exists, add it as a new enum value (numbers are stored in
+the scene and never change), give it its own asset, and return it from
+`Effective` for release builds. The full standard is
 `NAS_Backend/docs/ENVIRONMENTS.md`.
 
 **Recurring gotcha: adding a cross-folder script reference can compile
@@ -563,8 +562,8 @@ refuses any other key on a vehicle. A vehicle with no key, an inactive vehicle, 
 
 Deleted (11 Oct 2026): the AWS SDK plugin, `IStorageService`/`DevStorageService`/`DevStorageConfig`, `StoragePolicy` and the
 per-environment storage config assets (they would have embedded a key in every build), the in-Editor uploader
-(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. `_useProduction` on
-`GameManager` is unused (kept so the scene's serialized data is untouched).
+(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. The `_useProduction` flag on
+`GameManager` was removed (it was unused).
 
 **Reaching Tigris from a terminal:** the buckets live in your Fly.io account. `fly auth login` (opens the browser), then
 `fly storage list` / `fly storage dashboard <bucket>` to manage buckets and create access keys. For copying files use the
