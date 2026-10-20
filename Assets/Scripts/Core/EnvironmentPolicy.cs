@@ -1,18 +1,14 @@
 namespace NAS.Core
 {
-    // Which backend a build talks to, as pure rules (no Unity types) so they can be unit-tested.
-    //
-    //  - Editor and Development builds honour whatever is selected on GameManager.
-    //  - A normal (release) build IGNORES that selection and uses Staging, so it can never
-    //    ship pointing at localhost because someone forgot to flip a dropdown back.
-    //    (When a production backend exists, add it as its own AppEnvironment and return it here.)
+    // Which backend a build talks to, as pure logic so it can be unit-tested.
     public static class EnvironmentPolicy
     {
+        // Editor and development builds use the selection. A release build is always Staging, so it
+        // cannot ship pointing at localhost. Add Production here when it exists.
         public static AppEnvironment Effective(AppEnvironment selected, bool isDebugBuild) =>
             isDebugBuild ? selected : AppEnvironment.Staging;
 
-        // Only the nginx proxy setups use a locally generated certificate that devices do not trust.
-        // Staging has a real certificate, so it is always verified.
+        // Only the nginx proxies use a locally generated certificate that devices do not trust.
         public static bool TrustAnyCertificate(AppEnvironment environment) =>
             environment == AppEnvironment.ApiDomain || environment == AppEnvironment.ApiIp;
     }

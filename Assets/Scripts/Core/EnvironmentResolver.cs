@@ -3,11 +3,7 @@ using UnityEngine;
 
 namespace NAS.Core
 {
-    // Resolves which ApiSettings + cert-trust to use from GameManager.CurrentEnvironment.
-    // Every environment loads its ApiSettings from Resources/Config/ApiSettings.<Environment>.asset,
-    // so no build depends on an Inspector reference that could be left unassigned. Shared by every
-    // feature that needs to talk to the API, so this decision (and its config) lives in
-    // exactly one place instead of being re-implemented (and able to drift) per caller.
+    // Loads the ApiSettings and certificate rule for GameManager.CurrentEnvironment from Resources/Config.
     public static class EnvironmentResolver
     {
         private static bool _loggedOnce;
@@ -44,8 +40,7 @@ namespace NAS.Core
             if (settings != null)
                 return new Resolved(settings, EnvironmentPolicy.TrustAnyCertificate(environment));
 
-            // Never fall back to another environment here: a build silently talking to the wrong
-            // backend would look like a network problem. A missing asset is a build defect - say so loudly.
+            // No fallback: silently using another backend would look like a network problem.
             Debug.LogError($"{logPrefix} Resources/Config/ApiSettings.{environment}.asset is missing, so there is no backend address for {environment}.");
             return new Resolved(null, false);
         }

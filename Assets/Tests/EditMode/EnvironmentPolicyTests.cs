@@ -3,8 +3,6 @@ using NUnit.Framework;
 
 namespace NAS.Tests
 {
-    // Which backend a build talks to is the difference between a test and a customer's data,
-    // so the rules get tests of their own.
     public class EnvironmentPolicyTests
     {
         [TestCase(AppEnvironment.Local)]
@@ -43,7 +41,6 @@ namespace NAS.Tests
             Assert.AreEqual(3, (int)AppEnvironment.Staging);
         }
 
-        // Each environment's address is loaded by name from Resources/Config, so every one needs its file.
         [TestCase(AppEnvironment.Local, "http://localhost:5080")]
         [TestCase(AppEnvironment.ApiDomain, "https://api.nas.test:8443")]
         [TestCase(AppEnvironment.Staging, "https://nas-api.neoxr.co.za")]
