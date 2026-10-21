@@ -19,10 +19,16 @@ namespace NAS.Core.Vehicles
             car.category = dto.powertrain;
             car.imageUrl = dto.imageUrl;
             car.tigrisModelKey = dto.tigrisModelKey;
-            car.exteriorColors = (dto.exteriorColors ?? System.Array.Empty<VehicleColorDto>())
-                .Select(c => new CarColorOption { id = c.id, name = c.name, hexCode = c.hexCode, priceAdjustment = c.priceAdjustment })
-                .ToList();
+            car.exteriorColors = Options(dto.exteriorColors);
+            car.wheels = Options(dto.wheels);
+            car.interiors = Options(dto.interiors);
+            car.trimLevels = Options(dto.trimLevels);
             return car;
         }
+
+        private static List<CarColorOption> Options(VehicleColorDto[] dtos) =>
+            (dtos ?? System.Array.Empty<VehicleColorDto>())
+                .Select(c => new CarColorOption { id = c.id, name = c.name, hexCode = c.hexCode, priceAdjustment = c.priceAdjustment })
+                .ToList();
     }
 }

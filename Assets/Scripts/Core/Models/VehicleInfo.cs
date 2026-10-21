@@ -10,5 +10,8 @@ namespace NAS.Core.Models
         public float retailPrice;
         public string tigrisModelKey;
         public List<CarColorOption> exteriorColors = new List<CarColorOption>();
+        public List<CarColorOption> wheels = new List<CarColorOption>();
+        public List<CarColorOption> interiors = new List<CarColorOption>();
+        public List<CarColorOption> trimLevels = new List<CarColorOption>();
     }
 }

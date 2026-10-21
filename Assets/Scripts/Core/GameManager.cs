@@ -41,6 +41,7 @@ namespace NAS.Core
         public bool IsArSceneLoaded { get; set; } = false;
         // Set after Confirm saves the configuration; 0 means unset (JsonUtility cannot send a null int).
         public int SelectedConfigurationId { get; set; } = 0;
+        public CustomizationSelection Customization { get; } = new CustomizationSelection();
         // From POST /api/telemetry/session; 0 means not started or failed. Every other telemetry call needs it.
         public int TelemetrySessionId { get; set; } = 0;
         // Backgrounding fires pause many times and quit can follow; only the first counts as the end.
@@ -154,6 +155,7 @@ namespace NAS.Core
             SelectedCar = null;
             SelectedDealership = null;
             SelectedConfigurationId = 0;
+            Customization.Clear();
             ReturnToEstimator = false;
             TelemetrySessionId = 0;
             _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
@@ -221,6 +223,7 @@ namespace NAS.Core
             {
                 SelectedCar = null;
                 SelectedConfigurationId = 0;
+                Customization.Clear();
             }
             SelectedDealership = dealership;
             PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
@@ -260,6 +263,7 @@ namespace NAS.Core
         {
             SelectedCar = evt.Vehicle;
             SelectedConfigurationId = 0; // belonged to whatever car was previously selected
+            Customization.Clear();
             EventBus.Publish(new SessionCarSelectedEvent(SelectedCar));
             LogVehicleViewedEvent(SelectedCar);
         }

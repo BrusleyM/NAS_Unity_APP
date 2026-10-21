@@ -403,6 +403,23 @@
     padding: 0;
 }
 
+.swatch-item {
+    align-items: center;
+    margin: 0 8px;
+}
+
+.swatch-item > .color-swatch {
+    margin: 0;
+}
+
+.swatch-price {
+    color: rgba(192, 192, 192, 0.8);
+    font-size: 11px;
+    min-height: 15px;
+    margin-top: 4px;
+    -unity-text-align: middle-center;
+}
+
 .color-swatch--variant {
     color: rgb(255, 255, 255);
     font-size: 15px;

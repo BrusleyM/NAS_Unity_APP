@@ -507,7 +507,12 @@ letter and hides the rest (`ModelVariantRules`), the buttons show one chip per l
 **Trims** swap the `Trim*` parts to the `NAS/TrimGlow` shader (`Resources/Shaders/TrimGlow.shader`, loaded by `TrimGlow`): steady,
 pulsing or flowing glow, presets in `TrimStyles` (first one, Original, puts the car's own trim back). `CarTrimController` on the placed
 car applies them. Models built before the A/B pass (the nine older demo cars) have no variants, so those buttons say the part can't be
-changed on this car. The wheel/interior/trim choices are not saved to the backend; only trim styles count toward `colourChangeCount`.
+changed on this car. Prices: the customer API returns each car's `wheels`, `interiors` and `trimLevels` (with `priceAdjustment`) next to
+`exteriorColors`; the app matches wheel/interior chips to option rows by the style letter their name ends in (`Style B`) and trim chips to
+trim levels by the glow style's name (`OptionMatch`), and shows a "+R9 000" tag under any chip that costs extra. The whole choice lives in
+`GameManager.Customization` (`CustomizationSelection`, cleared per car and per AR visit), is sent on Confirm as `exteriorColorOptionId`,
+`wheelOptionId`, `interiorOptionId`, `trimLevelId` (0 = not chosen) and shows in the dashboard's Builds tab; the Estimator's price is the
+base price plus `Customization.OptionsTotal`. Only trim styles count toward `colourChangeCount`.
 Still not built: the camera-feed gradient scrim.
 
 **TODO, not urgent — telemetry-sending isn't consistently factored out of the

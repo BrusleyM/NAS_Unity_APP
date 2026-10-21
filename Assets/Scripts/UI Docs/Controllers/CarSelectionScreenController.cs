@@ -355,7 +355,10 @@ namespace NAS.UI.Controllers
                 modelName = selectedCar.carName,
                 retailPrice = selectedCar.retailPrice,
                 tigrisModelKey = selectedCar.tigrisModelKey,
-                exteriorColors = selectedCar.exteriorColors
+                exteriorColors = selectedCar.exteriorColors,
+                wheels = selectedCar.wheels,
+                interiors = selectedCar.interiors,
+                trimLevels = selectedCar.trimLevels
             };
             EventBus.Publish(new CarSelectedEvent(vehicle));
         }

@@ -80,7 +80,6 @@ namespace NAS.UI.Controllers
         private CarVariantSwitcher _variantSwitcher;
         private CarComponents _carComponents;
         private int _selectedTrimStyle;
-        private int _selectedColorOptionId;
         private string _activeCategoryId;
 
         private IConfigurationApi _configurationApi;
@@ -214,7 +213,7 @@ namespace NAS.UI.Controllers
             foreach (var pair in _categoryButtons)
                 pair.Value.RemoveFromClassList("category-button--active");
             _selectedSwatch = null;
-            _selectedColorOptionId = 0;
+            Selection?.Clear();
             _selectedTrimStyle = 0;
             _variantSwitcher = null;
             _carComponents = null;
@@ -546,7 +545,7 @@ namespace NAS.UI.Controllers
                     swatch.style.backgroundColor = new StyleColor(color);
 
                 swatch.clicked += () => OnSwatchClicked(swatch, option);
-                _swatchRow.Add(swatch);
+                AddChoice(swatch, option.priceAdjustment);
             }
         }
 
@@ -567,6 +566,8 @@ namespace NAS.UI.Controllers
 
             SetElementVisible(_swatchRow, true);
             var chosen = _variantSwitcher.Chosen(group);
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var options = OptionsOf(selectedCar == null ? null : categoryId == WheelCategoryId ? selectedCar.wheels : selectedCar.interiors);
             foreach (var letter in letters)
             {
                 var variant = letter;
@@ -578,15 +579,18 @@ namespace NAS.UI.Controllers
                 if (preview.HasValue)
                     chip.style.backgroundColor = new StyleColor(preview.Value);
 
-                chip.clicked += () => OnVariantClicked(chip, group, title, variant);
+                var option = OptionMatch.ForVariant(options, variant);
+                chip.clicked += () => OnVariantClicked(chip, group, title, variant, option);
                 if (variant == chosen) SelectChip(chip);
-                _swatchRow.Add(chip);
+                AddChoice(chip, option?.Price ?? 0f);
             }
             ShowCaption($"{title} style {chosen}");
         }
 
-        private void OnVariantClicked(Button chip, string group, string title, string variant)
+        private void OnVariantClicked(Button chip, string group, string title, string variant, OptionRef? option)
         {
+            if (group == ModelVariantRules.Wheels) Selection?.SetWheel(option?.Id ?? 0, option?.Price ?? 0f);
+            else Selection?.SetInterior(option?.Id ?? 0, option?.Price ?? 0f);
             SelectChip(chip);
             ShowCaption($"{title} style {variant}");
             EventBus.Publish(new ModelVariantSelectedEvent(group, variant));
@@ -605,10 +609,13 @@ namespace NAS.UI.Controllers
             }
 
             SetElementVisible(_swatchRow, true);
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var levels = OptionsOf(selectedCar?.trimLevels);
             for (var i = 0; i < TrimStyles.All.Count; i++)
             {
                 var index = i;
                 var style = TrimStyles.All[i];
+                var level = OptionMatch.ForName(levels, style.Name);
                 var chip = new Button { name = $"trim-style-{i}" };
                 chip.AddToClassList("color-swatch");
 
@@ -625,21 +632,43 @@ namespace NAS.UI.Controllers
                     chip.text = style.Mode == TrimMode.Flow ? "~" : style.Mode == TrimMode.Pulse ? "\u25CF" : string.Empty;
                 }
 
-                chip.clicked += () => OnTrimStyleClicked(chip, index);
+                chip.clicked += () => OnTrimStyleClicked(chip, index, level);
                 if (i == _selectedTrimStyle) SelectChip(chip);
-                _swatchRow.Add(chip);
+                AddChoice(chip, level?.Price ?? 0f);
             }
             ShowCaption(TrimStyles.All[_selectedTrimStyle].Label);
         }
 
-        private void OnTrimStyleClicked(Button chip, int index)
+        private void OnTrimStyleClicked(Button chip, int index, OptionRef? level)
         {
             var style = TrimStyles.All[index];
             _selectedTrimStyle = index;
+            Selection?.SetTrim(level?.Id ?? 0, level?.Price ?? 0f);
             if (!style.IsOriginal) _colourChangeCount++;
             SelectChip(chip);
             ShowCaption(style.Label);
             EventBus.Publish(new TrimStyleSelectedEvent(style.Hex, (int)style.Mode, style.Intensity));
+        }
+
+        private CustomizationSelection Selection => GameManager.Instance != null ? GameManager.Instance.Customization : null;
+
+        private static List<OptionRef> OptionsOf(List<CarColorOption> options)
+        {
+            var refs = new List<OptionRef>();
+            if (options != null)
+                foreach (var option in options) refs.Add(new OptionRef(option.id, option.name, option.priceAdjustment));
+            return refs;
+        }
+
+        private void AddChoice(Button chip, float price)
+        {
+            var item = new VisualElement();
+            item.AddToClassList("swatch-item");
+            item.Add(chip);
+            var tag = new Label(OptionMatch.PriceTag(price));
+            tag.AddToClassList("swatch-price");
+            item.Add(tag);
+            _swatchRow.Add(item);
         }
 
         private void SelectChip(Button chip)
@@ -656,7 +685,7 @@ namespace NAS.UI.Controllers
 
             swatch.AddToClassList("color-swatch--selected");
             _selectedSwatch = swatch;
-            _selectedColorOptionId = option.id;
+            Selection?.SetColour(option.id, option.priceAdjustment);
             _colourChangeCount++;
 
             EventBus.Publish(new PaintColorSelectedEvent(option.hexCode));
@@ -683,17 +712,7 @@ namespace NAS.UI.Controllers
             EventBus.Publish(new ExitArRequestedEvent());
         }
 
-        // Finalizes a SavedConfiguration for the selected car before handing
-        // off to the Estimator - best-effort, same philosophy as
-        // EstimatorService's auto-scoring hook. Sends the actually-selected
-        // paint swatch (_selectedColorOptionId, 0 if the customer never
-        // touched Customize); trim/interior/wheel still have no picker UI, so
-        // the backend fills those three in with that vehicle's default
-        // options. Gives the eventual Lead a real SavedConfigurationId
-        // instead of always leaving it null. Any failure (no network, no
-        // vehicle selected, not signed in) must never block the customer from
-        // reaching the Estimator - it just proceeds with SelectedConfigurationId
-        // left at 0, same as before this existed.
+        // Saves the whole Customize choice before the Estimator, best-effort.
         private void OnConfirmClicked()
         {
             if (_isConfirming) return;
@@ -723,7 +742,10 @@ namespace NAS.UI.Controllers
             var request = new CreateConfigurationRequest
             {
                 vehicleModelId = selectedCar.id,
-                exteriorColorOptionId = _selectedColorOptionId
+                exteriorColorOptionId = Selection?.ExteriorColorOptionId ?? 0,
+                wheelOptionId = Selection?.WheelOptionId ?? 0,
+                interiorOptionId = Selection?.InteriorOptionId ?? 0,
+                trimLevelId = Selection?.TrimLevelId ?? 0
             };
             _configurationApi.CreateConfiguration(request, accessToken, result =>
             {
