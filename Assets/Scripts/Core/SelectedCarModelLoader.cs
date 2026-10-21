@@ -155,6 +155,8 @@ namespace NAS.Core
                 // door-open animation) read this instead of re-deriving
                 // categories from material names themselves.
                 modelRoot.AddComponent<CarComponents>();
+                modelRoot.AddComponent<CarVariantSwitcher>();
+                modelRoot.AddComponent<CarTrimController>();
                 ContactShadowFactory.Attach(modelRoot);
 
                 modelRoot.SetActive(false);
