@@ -15,7 +15,5 @@ namespace NAS.Core.Networking
         public int zoomOutCount;
         public int colourChangeCount;
         public int trimChangeCount;
-        public int specificationViewCount;
-        public int galleryViewCount;
     }
 }

@@ -91,6 +91,9 @@ namespace NAS.UI.Controllers
         // visit in ShowForCurrentCar(), sent once when the customer leaves AR
         // (back or confirm) in SendVehicleInteractionTelemetry().
         private int _colourChangeCount;
+        private int _trimChangeCount;
+        private int _zoomInCount;
+        private int _zoomOutCount;
         private string _clientVehicleInteractionId;
         private DateTime _vehicleInteractionStartedAt;
 
@@ -189,6 +192,7 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Subscribe<CarScaleChangedEvent>(OnCarScaleChanged);
+            EventBus.Subscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
             ShowForCurrentCar();
         }
@@ -243,6 +247,9 @@ namespace NAS.UI.Controllers
             RefreshTestDriveButton();
 
             _colourChangeCount = 0;
+            _trimChangeCount = 0;
+            _zoomInCount = 0;
+            _zoomOutCount = 0;
             _clientVehicleInteractionId = Guid.NewGuid().ToString();
             _vehicleInteractionStartedAt = DateTime.UtcNow;
         }
@@ -391,6 +398,12 @@ namespace NAS.UI.Controllers
             _verticalOffsetSlider?.SetValueWithoutNotify(0f);
         }
 
+        private void OnZoomCountsUpdated(ZoomCountsUpdatedEvent evt)
+        {
+            _zoomInCount = evt.ZoomIn;
+            _zoomOutCount = evt.ZoomOut;
+        }
+
         private void OnCarScaleChanged(CarScaleChangedEvent evt)
         {
             if (_scaleHintLabel != null)
@@ -414,6 +427,7 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<EnterArRequestedEvent>(OnEnterAr);
             EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Unsubscribe<CarScaleChangedEvent>(OnCarScaleChanged);
+            EventBus.Unsubscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
 
             if (_backButton != null)
@@ -642,9 +656,10 @@ namespace NAS.UI.Controllers
         private void OnTrimStyleClicked(Button chip, int index, OptionRef? level)
         {
             var style = TrimStyles.All[index];
+            var previousStyle = _selectedTrimStyle;
             _selectedTrimStyle = index;
             Selection?.SetTrim(level?.Id ?? 0, level?.Price ?? 0f);
-            if (!style.IsOriginal) _colourChangeCount++;
+            if (index != previousStyle) _trimChangeCount++;
             SelectChip(chip);
             ShowCaption(style.Label);
             EventBus.Publish(new TrimStyleSelectedEvent(style.Hex, (int)style.Mode, style.Intensity));
@@ -802,7 +817,10 @@ namespace NAS.UI.Controllers
                 categoryName = PaintCategoryId,
                 startedAt = _vehicleInteractionStartedAt.ToString("o"),
                 endedAt = DateTime.UtcNow.ToString("o"),
-                colourChangeCount = _colourChangeCount
+                colourChangeCount = _colourChangeCount,
+                trimChangeCount = _trimChangeCount,
+                zoomInCount = _zoomInCount,
+                zoomOutCount = _zoomOutCount
             };
             telemetryApi.LogVehicleInteraction(request, accessToken, result =>
             {
