@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace NAS.Core
 {
@@ -40,6 +39,6 @@ namespace NAS.Core
         }
 
         public static string PriceTag(float price) =>
-            price >= 0.5f ? "+R" + ((long)Math.Round(price)).ToString("N0", CultureInfo.InvariantCulture).Replace(',', ' ') : string.Empty;
+            price >= 0.5f ? "+" + Money.Rand(price) : string.Empty;
     }
 }
