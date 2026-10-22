@@ -151,9 +151,9 @@ namespace NAS.UI.Controllers
             // GameManager; retail price already used the real value, this
             // brings the vehicle-info label in line with it.
             if (_vehicleInfoLabel != null) _vehicleInfoLabel.text = _vehicle.modelName;
-            _retailPriceLabel.text = $"R{_vehicle.retailPrice:N0}";
+            _retailPriceLabel.text = Money.Rand(_vehicle.retailPrice);
             if (_retailPriceCaption != null)
-                _retailPriceCaption.text = _optionsTotal > 0f ? $"Price with options (R{_optionsTotal:N0})" : "Retail Price";
+                _retailPriceCaption.text = _optionsTotal > 0f ? $"Price with options ({Money.Rand(_optionsTotal)})" : "Retail Price";
             
             _depositField.value = $"{_deposit}";
             _tradeInField.value = $"{_tradeIn}";
@@ -298,20 +298,20 @@ namespace NAS.UI.Controllers
         {
             float financed = _vehicle.retailPrice - _deposit - _tradeIn;
             if (financed < 0) financed = 0;
-            _financedAmountLabel.text = $"R{financed:N0}";
+            _financedAmountLabel.text = Money.Rand(financed);
             
             float balloonAmount = financed * (_balloonPercent / 100f);
             _balloonPercentLabel.text = $"{_balloonPercent:F0}%";
-            _balloonDollarLabel.text = $"({balloonAmount:C0})";
+            _balloonDollarLabel.text = $"({Money.Rand(balloonAmount)})";
             _interestValueLabel.text = $"{_interestRate:F1}%";
             _loanInterestInfoLabel.text = $"* Estimated payment based on {_interestRate:F1}% interest. Actual rates may vary.";
             
             float monthly = _loanCalculator.CalculateMonthlyPayment(financed, balloonAmount, _loanTerm, _interestRate);
-            _monthlyPaymentLabel.text = $"{monthly:C0}";
+            _monthlyPaymentLabel.text = Money.Rand(monthly);
             
             if (_balloonPercent > 0)
             {
-                _balloonInfoLabel.text = $"+ {balloonAmount:C0} balloon due at end";
+                _balloonInfoLabel.text = $"+ {Money.Rand(balloonAmount)} balloon due at end";
                 _balloonContainer.style.display = DisplayStyle.Flex;
             }
             else
