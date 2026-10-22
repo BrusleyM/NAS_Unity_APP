@@ -309,6 +309,32 @@ namespace NAS.Core.Events
         public PaintColorSelectedEvent(string hexCode) => HexCode = hexCode;
     }
 
+    /// <summary>A trim glow style was picked in the Customize sheet; a null hex puts the car's own trim back.</summary>
+    public readonly struct TrimStyleSelectedEvent
+    {
+        public readonly string Hex;
+        public readonly int Mode;
+        public readonly float Intensity;
+        public TrimStyleSelectedEvent(string hex, int mode, float intensity)
+        {
+            Hex = hex;
+            Mode = mode;
+            Intensity = intensity;
+        }
+    }
+
+    /// <summary>A wheel or interior style (variant "A", "B", ...) was picked in the Customize sheet.</summary>
+    public readonly struct ModelVariantSelectedEvent
+    {
+        public readonly string Group;
+        public readonly string Variant;
+        public ModelVariantSelectedEvent(string group, string variant)
+        {
+            Group = group;
+            Variant = variant;
+        }
+    }
+
     /// <summary>Raised by ArViewportController whenever the Customize sheet opens/closes, so CarManipulationController can suspend touch manipulation while the user is tapping swatches instead of dragging the car underneath them.</summary>
     public readonly struct CustomizeSheetToggledEvent
     {

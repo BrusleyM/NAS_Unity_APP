@@ -465,8 +465,8 @@ Screen flow, as actually wired:
 
 **Built so far:** top bar (Back button, centered car name label, circular cyan
 Confirm/checkmark button), a bottom-center Settings button that opens a
-placeholder "Customize" bottom sheet (drag handle, header with close button, just
-a "Coming soon" label — tapping the backdrop or the close button closes it), and
+"Customize" bottom sheet (drag handle, header with close button, the category
+buttons below — tapping the backdrop or the close button closes it), and
 real manipulation of the placed car — one-finger drag to reposition, two-finger
 pinch to scale (clamped 1x–2.5x real-world size, never smaller — shrinking below
 1:1 defeats the point of seeing it at true scale), and a rotation slider (`-180°`
@@ -500,17 +500,20 @@ model is retrained on real outcomes), and NAS-Admin explains why. This is the
 only real source of the `test_drive_requested` signal the ML training data
 counts.
 
-**Not yet built:** the camera-feed gradient scrim, and the real contents of the
-"Customize" sheet (the Wheel/Paint/Trims/Dashboard 4-item grid, Paint's 5 color
-swatches, the other three categories' text-choice rows) — the sheet currently
-opens/closes but shows only placeholder text. Deliberately deferred — there's no
-customer-facing data model yet for which options are actually configurable per car
-(see the "Planned: API-driven vehicle catalog" section above; trim/color/interior/
-wheel data was explicitly scoped out of the car-selection API work). Build this
-grid once that data exists, following the
-same pattern as the top bar (scene-placed controller in `AR Scene.unity`, not
-`AddComponent`-dynamic — this scene only ever shows one screen, so it doesn't need
-`ParentPageController`'s router pattern).
+**Customize sheet** (four buttons; Dashboard was dropped). **Paint** swaps the body colour (the car's catalogue colours,
+`CarData.exteriorColors`, saved with the build). **Wheel** and **Interior** switch between the model's alternative meshes
+(`Wheels_A`/`Wheels_B`, `Interior_A`/`Interior_B` with the door cards): `CarVariantSwitcher` on the placed car shows the chosen
+letter and hides the rest (`ModelVariantRules`), the buttons show one chip per letter the car has, coloured by its rim or leather.
+**Trims** swap the `Trim*` parts to the `NAS/TrimGlow` shader (`Resources/Shaders/TrimGlow.shader`, loaded by `TrimGlow`): steady,
+pulsing or flowing glow, presets in `TrimStyles` (first one, Original, puts the car's own trim back). `CarTrimController` on the placed
+car applies them. Models built before the A/B pass (the nine older demo cars) have no variants, so those buttons say the part can't be
+changed on this car. Prices: the customer API returns each car's `wheels`, `interiors` and `trimLevels` (with `priceAdjustment`) next to
+`exteriorColors`; the app matches wheel/interior chips to option rows by the style letter their name ends in (`Style B`) and trim chips to
+trim levels by the glow style's name (`OptionMatch`), and shows a "+R9 000" tag under any chip that costs extra. The whole choice lives in
+`GameManager.Customization` (`CustomizationSelection`, cleared per car and per AR visit), is sent on Confirm as `exteriorColorOptionId`,
+`wheelOptionId`, `interiorOptionId`, `trimLevelId` (0 = not chosen) and shows in the dashboard's Builds tab; the Estimator's price is the
+base price plus `Customization.OptionsTotal`. Only trim styles count toward `colourChangeCount`.
+Still not built: the camera-feed gradient scrim.
 
 **TODO, not urgent — telemetry-sending isn't consistently factored out of the
 controller that owns the interaction.** `ObjectPlacerController` still builds

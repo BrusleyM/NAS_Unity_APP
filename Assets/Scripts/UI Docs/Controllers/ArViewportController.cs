@@ -22,8 +22,12 @@ namespace NAS.UI.Controllers
         private const string PaintCategoryId = "paint";
         private const string LogPrefix = "[NAS AR Viewport]";
 
-        private static readonly string[] CategoryIds = { "wheel", "paint", "trims", "dashboard" };
-        private static readonly string[] CategoryButtonNames = { "category-wheel", "category-paint", "category-trims", "category-dashboard" };
+        private const string WheelCategoryId = "wheel";
+        private const string TrimsCategoryId = "trims";
+        private const string InteriorCategoryId = "interior";
+
+        private static readonly string[] CategoryIds = { WheelCategoryId, PaintCategoryId, TrimsCategoryId, InteriorCategoryId };
+        private static readonly string[] CategoryButtonNames = { "category-wheel", "category-paint", "category-trims", "category-interior" };
 
         private Button _backButton;
         private Button _confirmButton;
@@ -68,16 +72,14 @@ namespace NAS.UI.Controllers
         // manipulate is confusing. Shown once CarPlacedEvent fires.
         private VisualElement _settingsButtonRow;
 
-        // Wheel/Trims/Dashboard have no data model to back real customization
-        // yet (see .claude/CLAUDE.md's "Vehicle catalog" section) - tapping
-        // them just shows the same "Coming soon" placeholder the whole sheet
-        // used to show. Paint is real: backed by CarData.exteriorColors,
-        // fetched from the customer vehicle API.
+        // Wheel and Interior switch the model's A/B meshes and Trims swap a glow shader, both on the placed car (CarVariantSwitcher, CarTrimController).
         private readonly Dictionary<string, Button> _categoryButtons = new Dictionary<string, Button>();
         private VisualElement _swatchRow;
-        private Label _categoryPlaceholderText;
+        private Label _swatchCaption;
         private Button _selectedSwatch;
-        private int _selectedColorOptionId;
+        private CarVariantSwitcher _variantSwitcher;
+        private CarComponents _carComponents;
+        private int _selectedTrimStyle;
         private string _activeCategoryId;
 
         private IConfigurationApi _configurationApi;
@@ -135,7 +137,7 @@ namespace NAS.UI.Controllers
             _sheetBackdrop = root.Q<VisualElement>("sheet-backdrop");
             _customizeSheet = root.Q<VisualElement>("customize-sheet");
             _swatchRow = root.Q<VisualElement>("swatch-row");
-            _categoryPlaceholderText = root.Q<Label>("category-placeholder-text");
+            _swatchCaption = root.Q<Label>("swatch-caption");
             _rotationSlider = root.Q<Slider>("rotation-slider");
             _rotationSliderRow = root.Q<VisualElement>("rotation-slider-row");
             _rotationValueLabel = root.Q<Label>("rotation-value-label");
@@ -211,10 +213,13 @@ namespace NAS.UI.Controllers
             foreach (var pair in _categoryButtons)
                 pair.Value.RemoveFromClassList("category-button--active");
             _selectedSwatch = null;
-            _selectedColorOptionId = 0;
+            Selection?.Clear();
+            _selectedTrimStyle = 0;
+            _variantSwitcher = null;
+            _carComponents = null;
             if (_swatchRow != null)
                 _swatchRow.Clear();
-            SetElementVisible(_categoryPlaceholderText, false);
+            SetElementVisible(_swatchCaption, false);
 
             // SetValueWithoutNotify - a plain `.value = 0` would fire
             // RotationSliderChangedEvent through the normal callback path,
@@ -297,6 +302,8 @@ namespace NAS.UI.Controllers
         // on the next AR entry.
         private void OnCarPlaced(CarPlacedEvent evt)
         {
+            _variantSwitcher = evt.Instance != null ? evt.Instance.GetComponent<CarVariantSwitcher>() : null;
+            _carComponents = evt.Instance != null ? evt.Instance.GetComponent<CarComponents>() : null;
             SetElementVisible(_rotationSliderRow, true);
             SetElementVisible(_verticalOffsetSliderColumn, true);
             SetElementVisible(_settingsButtonRow, true);
@@ -487,21 +494,29 @@ namespace NAS.UI.Controllers
             foreach (var pair in _categoryButtons)
                 pair.Value.EnableInClassList("category-button--active", pair.Key == categoryId);
 
-            if (categoryId == PaintCategoryId)
+            switch (categoryId)
             {
-                ShowPaintSwatches();
+                case PaintCategoryId: ShowPaintSwatches(); break;
+                case TrimsCategoryId: ShowTrimStyles(); break;
+                default: ShowVariants(categoryId); break;
             }
-            else
-            {
-                SetElementVisible(_swatchRow, false);
-                SetElementVisible(_categoryPlaceholderText, true);
-            }
+        }
+
+        private void ShowCaption(string text)
+        {
+            if (_swatchCaption == null) return;
+            _swatchCaption.text = text;
+            SetElementVisible(_swatchCaption, true);
+        }
+
+        private void ShowUnavailable(string what)
+        {
+            SetElementVisible(_swatchRow, false);
+            ShowCaption($"{what} can't be changed on this car.");
         }
 
         private void ShowPaintSwatches()
         {
-            SetElementVisible(_categoryPlaceholderText, false);
-
             var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
             var colors = selectedCar != null ? selectedCar.exteriorColors : null;
 
@@ -513,15 +528,13 @@ namespace NAS.UI.Controllers
 
             if (colors == null || colors.Count == 0)
             {
-                // No color data for this car - fall back to the same
-                // placeholder the other categories use rather than showing an
-                // empty row.
                 SetElementVisible(_swatchRow, false);
-                SetElementVisible(_categoryPlaceholderText, true);
+                ShowCaption("No paint colours are set up for this car.");
                 return;
             }
 
             SetElementVisible(_swatchRow, true);
+            SetElementVisible(_swatchCaption, false);
 
             foreach (var option in colors)
             {
@@ -532,8 +545,137 @@ namespace NAS.UI.Controllers
                     swatch.style.backgroundColor = new StyleColor(color);
 
                 swatch.clicked += () => OnSwatchClicked(swatch, option);
-                _swatchRow.Add(swatch);
+                AddChoice(swatch, option.priceAdjustment);
             }
+        }
+
+        private void ShowVariants(string categoryId)
+        {
+            if (_swatchRow == null) return;
+            _swatchRow.Clear();
+            _selectedSwatch = null;
+
+            var group = categoryId == WheelCategoryId ? ModelVariantRules.Wheels : ModelVariantRules.Interior;
+            var title = categoryId == WheelCategoryId ? "Wheels" : "Interior";
+            var letters = _variantSwitcher != null ? _variantSwitcher.Variants(group) : null;
+            if (letters == null || letters.Count < 2)
+            {
+                ShowUnavailable(title);
+                return;
+            }
+
+            SetElementVisible(_swatchRow, true);
+            var chosen = _variantSwitcher.Chosen(group);
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var options = OptionsOf(selectedCar == null ? null : categoryId == WheelCategoryId ? selectedCar.wheels : selectedCar.interiors);
+            foreach (var letter in letters)
+            {
+                var variant = letter;
+                var chip = new Button { name = $"variant-{group}-{variant}", text = variant };
+                chip.AddToClassList("color-swatch");
+                chip.AddToClassList("color-swatch--variant");
+
+                var preview = _variantSwitcher.Preview(group, variant);
+                if (preview.HasValue)
+                    chip.style.backgroundColor = new StyleColor(preview.Value);
+
+                var option = OptionMatch.ForVariant(options, variant);
+                chip.clicked += () => OnVariantClicked(chip, group, title, variant, option);
+                if (variant == chosen) SelectChip(chip);
+                AddChoice(chip, option?.Price ?? 0f);
+            }
+            ShowCaption($"{title} style {chosen}");
+        }
+
+        private void OnVariantClicked(Button chip, string group, string title, string variant, OptionRef? option)
+        {
+            if (group == ModelVariantRules.Wheels) Selection?.SetWheel(option?.Id ?? 0, option?.Price ?? 0f);
+            else Selection?.SetInterior(option?.Id ?? 0, option?.Price ?? 0f);
+            SelectChip(chip);
+            ShowCaption($"{title} style {variant}");
+            EventBus.Publish(new ModelVariantSelectedEvent(group, variant));
+        }
+
+        private void ShowTrimStyles()
+        {
+            if (_swatchRow == null) return;
+            _swatchRow.Clear();
+            _selectedSwatch = null;
+
+            if (_carComponents == null || _carComponents.Trim.Count == 0)
+            {
+                ShowUnavailable("Trims");
+                return;
+            }
+
+            SetElementVisible(_swatchRow, true);
+            var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
+            var levels = OptionsOf(selectedCar?.trimLevels);
+            for (var i = 0; i < TrimStyles.All.Count; i++)
+            {
+                var index = i;
+                var style = TrimStyles.All[i];
+                var level = OptionMatch.ForName(levels, style.Name);
+                var chip = new Button { name = $"trim-style-{i}" };
+                chip.AddToClassList("color-swatch");
+
+                if (style.IsOriginal)
+                {
+                    chip.AddToClassList("color-swatch--original");
+                    chip.text = "\u21BA";
+                }
+                else
+                {
+                    if (ColorUtility.TryParseHtmlString(style.Hex, out var color))
+                        chip.style.backgroundColor = new StyleColor(color);
+                    chip.AddToClassList("color-swatch--variant");
+                    chip.text = style.Mode == TrimMode.Flow ? "~" : style.Mode == TrimMode.Pulse ? "\u25CF" : string.Empty;
+                }
+
+                chip.clicked += () => OnTrimStyleClicked(chip, index, level);
+                if (i == _selectedTrimStyle) SelectChip(chip);
+                AddChoice(chip, level?.Price ?? 0f);
+            }
+            ShowCaption(TrimStyles.All[_selectedTrimStyle].Label);
+        }
+
+        private void OnTrimStyleClicked(Button chip, int index, OptionRef? level)
+        {
+            var style = TrimStyles.All[index];
+            _selectedTrimStyle = index;
+            Selection?.SetTrim(level?.Id ?? 0, level?.Price ?? 0f);
+            if (!style.IsOriginal) _colourChangeCount++;
+            SelectChip(chip);
+            ShowCaption(style.Label);
+            EventBus.Publish(new TrimStyleSelectedEvent(style.Hex, (int)style.Mode, style.Intensity));
+        }
+
+        private CustomizationSelection Selection => GameManager.Instance != null ? GameManager.Instance.Customization : null;
+
+        private static List<OptionRef> OptionsOf(List<CarColorOption> options)
+        {
+            var refs = new List<OptionRef>();
+            if (options != null)
+                foreach (var option in options) refs.Add(new OptionRef(option.id, option.name, option.priceAdjustment));
+            return refs;
+        }
+
+        private void AddChoice(Button chip, float price)
+        {
+            var item = new VisualElement();
+            item.AddToClassList("swatch-item");
+            item.Add(chip);
+            var tag = new Label(OptionMatch.PriceTag(price));
+            tag.AddToClassList("swatch-price");
+            item.Add(tag);
+            _swatchRow.Add(item);
+        }
+
+        private void SelectChip(Button chip)
+        {
+            _selectedSwatch?.RemoveFromClassList("color-swatch--selected");
+            chip.AddToClassList("color-swatch--selected");
+            _selectedSwatch = chip;
         }
 
         private void OnSwatchClicked(Button swatch, CarColorOption option)
@@ -543,7 +685,7 @@ namespace NAS.UI.Controllers
 
             swatch.AddToClassList("color-swatch--selected");
             _selectedSwatch = swatch;
-            _selectedColorOptionId = option.id;
+            Selection?.SetColour(option.id, option.priceAdjustment);
             _colourChangeCount++;
 
             EventBus.Publish(new PaintColorSelectedEvent(option.hexCode));
@@ -570,17 +712,7 @@ namespace NAS.UI.Controllers
             EventBus.Publish(new ExitArRequestedEvent());
         }
 
-        // Finalizes a SavedConfiguration for the selected car before handing
-        // off to the Estimator - best-effort, same philosophy as
-        // EstimatorService's auto-scoring hook. Sends the actually-selected
-        // paint swatch (_selectedColorOptionId, 0 if the customer never
-        // touched Customize); trim/interior/wheel still have no picker UI, so
-        // the backend fills those three in with that vehicle's default
-        // options. Gives the eventual Lead a real SavedConfigurationId
-        // instead of always leaving it null. Any failure (no network, no
-        // vehicle selected, not signed in) must never block the customer from
-        // reaching the Estimator - it just proceeds with SelectedConfigurationId
-        // left at 0, same as before this existed.
+        // Saves the whole Customize choice before the Estimator, best-effort.
         private void OnConfirmClicked()
         {
             if (_isConfirming) return;
@@ -610,7 +742,10 @@ namespace NAS.UI.Controllers
             var request = new CreateConfigurationRequest
             {
                 vehicleModelId = selectedCar.id,
-                exteriorColorOptionId = _selectedColorOptionId
+                exteriorColorOptionId = Selection?.ExteriorColorOptionId ?? 0,
+                wheelOptionId = Selection?.WheelOptionId ?? 0,
+                interiorOptionId = Selection?.InteriorOptionId ?? 0,
+                trimLevelId = Selection?.TrimLevelId ?? 0
             };
             _configurationApi.CreateConfiguration(request, accessToken, result =>
             {

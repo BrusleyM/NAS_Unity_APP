@@ -14,6 +14,7 @@ namespace NAS.UI.Controllers
     {
         [SerializeField] private Label _vehicleInfoLabel;
         [SerializeField] private Label _retailPriceLabel;
+        private Label _retailPriceCaption;
         [SerializeField] private TextField _depositField;
         [SerializeField] private TextField _tradeInField;
         [SerializeField] private TextField _loanTermField;
@@ -41,6 +42,7 @@ namespace NAS.UI.Controllers
         private VisualElement _balloonSliderFill;
 
         private VehicleInfo _vehicle;
+        private float _optionsTotal;
         private ILoanCalculator _loanCalculator;
         private IEstimatorApi _estimatorApi;
         private bool _isSubmitting;
@@ -76,7 +78,20 @@ namespace NAS.UI.Controllers
             // Use selected car from GameManager if available, otherwise fallback to default
             if (GameManager.Instance != null && GameManager.Instance.SelectedCar != null)
             {
-                _vehicle = GameManager.Instance.SelectedCar;
+                // A copy priced with the chosen options; the selected car keeps its base price.
+                var selected = GameManager.Instance.SelectedCar;
+                _optionsTotal = GameManager.Instance.Customization.OptionsTotal;
+                _vehicle = new VehicleInfo
+                {
+                    id = selected.id,
+                    modelName = selected.modelName,
+                    retailPrice = selected.retailPrice + _optionsTotal,
+                    tigrisModelKey = selected.tigrisModelKey,
+                    exteriorColors = selected.exteriorColors,
+                    wheels = selected.wheels,
+                    interiors = selected.interiors,
+                    trimLevels = selected.trimLevels
+                };
             }
             else
             {
@@ -125,6 +140,7 @@ namespace NAS.UI.Controllers
             if (_balloonInfoLabel == null) _balloonInfoLabel = root.Q<Label>("balloon-info");
             if (_loanInterestInfoLabel == null) _loanInterestInfoLabel = root.Q<Label>("loan_interest_info");
             if (_sendButton == null) _sendButton = root.Q<Button>("send-button");
+            if (_retailPriceCaption == null) _retailPriceCaption = root.Q<Label>("retail-price-caption");
             if (_balloonContainer == null) _balloonContainer = root.Q<VisualElement>("balloon-info-container");
             if (_sendErrorLabel == null) _sendErrorLabel = root.Q<Label>("estimator-error-label");
 
@@ -135,6 +151,8 @@ namespace NAS.UI.Controllers
             // brings the vehicle-info label in line with it.
             if (_vehicleInfoLabel != null) _vehicleInfoLabel.text = _vehicle.modelName;
             _retailPriceLabel.text = $"R{_vehicle.retailPrice:N0}";
+            if (_retailPriceCaption != null)
+                _retailPriceCaption.text = _optionsTotal > 0f ? $"Price with options (R{_optionsTotal:N0})" : "Retail Price";
             
             _depositField.value = $"{_deposit}";
             _tradeInField.value = $"{_tradeIn}";

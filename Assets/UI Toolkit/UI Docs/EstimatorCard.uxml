@@ -6,7 +6,7 @@
             <ui:Label name="vehicle-info" text="Tesla Model S · Performance Trim" class="subtitle"/>
         </ui:VisualElement>
         <ui:VisualElement class="info-box">
-            <ui:Label text="Retail Price" class="info-label"/>
+            <ui:Label name="retail-price-caption" text="Retail Price" class="info-label"/>
             <ui:Label name="retail-price" text="$75,000" class="info-value"/>
         </ui:VisualElement>
         <ui:ScrollView name="estimator-scroll" class="estimator-scroll">
