@@ -90,7 +90,7 @@ namespace NAS.Core
                     return;
                 }
 
-                var downloadResult = await GameManager.Instance.DownloadModel(selectedCar.id);
+                var downloadResult = await GameManager.Instance.DownloadModel(selectedCar.id, modelKey);
                 if (this == null) return; // AR Scene unloaded mid-download
 
                 if (!downloadResult.IsSuccess)
