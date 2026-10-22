@@ -81,6 +81,14 @@
     border-color: rgba(0, 212, 255, 0.5);
 }
 
+.dealership-card-logo {
+    width: 44px;
+    height: 44px;
+    margin-right: 12px;
+    flex-shrink: 0;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
 .dealership-card-body {
     flex-grow: 1;
     flex-shrink: 1;

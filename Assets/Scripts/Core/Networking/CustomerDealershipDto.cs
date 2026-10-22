@@ -14,6 +14,7 @@ namespace NAS.Core.Networking
         public string phone;
         public string brandingLogoUrl;
         public string primaryColor;
+        public float interestRate;
     }
 
     [Serializable]

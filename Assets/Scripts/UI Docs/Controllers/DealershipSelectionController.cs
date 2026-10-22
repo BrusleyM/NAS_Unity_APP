@@ -33,6 +33,8 @@ namespace NAS.UI.Controllers
         private Button _continueButton;
         private Label _changeNote;
         private IDealershipApi _api;
+        private RemoteTextureLoader _logoLoader;
+        private string _apiBaseUrl;
         private bool _loading;
 
         private DealershipInfo _current;                 // already chosen this login = change mode
@@ -98,6 +100,8 @@ namespace NAS.UI.Controllers
             ShowStatus("Loading dealerships...", showRetry: false);
 
             _api ??= new DealershipApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            _logoLoader ??= new RemoteTextureLoader(this, resolved.TrustAnyCertificate);
+            _apiBaseUrl = resolved.Settings.BaseUrl;
             _api.GetDealerships(accessToken, OnLoaded);
         }
 
@@ -148,6 +152,19 @@ namespace NAS.UI.Controllers
         {
             var card = new Button();
             card.AddToClassList("dealership-card");
+
+            var logoUrl = DealershipBranding.ImageUrl(dealership.brandingLogoUrl, _apiBaseUrl);
+            if (logoUrl != null)
+            {
+                var logo = new VisualElement();
+                logo.AddToClassList("dealership-card-logo");
+                card.Add(logo);
+                _logoLoader.RequestTexture(logoUrl, texture =>
+                {
+                    if (this != null && texture != null)
+                        logo.style.backgroundImage = new StyleBackground(Background.FromTexture2D(texture));
+                });
+            }
 
             var body = new VisualElement();
             body.AddToClassList("dealership-card-body");
@@ -219,7 +236,10 @@ namespace NAS.UI.Controllers
             EventBus.Publish(new DealershipSelectedEvent(new DealershipInfo
             {
                 id = _selected.id,
-                name = _selected.name
+                name = _selected.name,
+                logoUrl = _selected.brandingLogoUrl,
+                primaryColor = _selected.primaryColor,
+                interestRate = _selected.interestRate
             }));
         }
 

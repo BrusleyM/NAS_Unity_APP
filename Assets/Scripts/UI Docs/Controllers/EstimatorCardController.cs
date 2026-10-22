@@ -105,7 +105,8 @@ namespace NAS.UI.Controllers
             _deposit = 0f;
             _tradeIn = 0f;
             _loanTerm = 48;
-            _interestRate = 4.5f;
+            var dealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
+            _interestRate = DealershipBranding.StartingInterestRate(dealership != null ? dealership.interestRate : 0f);
             _balloonPercent = 0f;
 
             _initialDeposit = _deposit;

@@ -6,5 +6,8 @@ namespace NAS.Core.Models
     {
         public int id;
         public string name;
+        public string logoUrl;
+        public string primaryColor;
+        public float interestRate;
     }
 }
