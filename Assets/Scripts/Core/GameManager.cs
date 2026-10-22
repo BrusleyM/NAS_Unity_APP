@@ -68,6 +68,7 @@ namespace NAS.Core
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            gameObject.AddComponent<AccentThemeRunner>();
 
             _modelDownloader = new ModelDownloader(this, new ModelDiskCache(System.IO.Path.Combine(Application.persistentDataPath, "models"), ModelCacheBytes));
             _screens = new ScreenVisitTracker(OnScreenVisitFinished);
