@@ -75,6 +75,8 @@ namespace NAS.Core
 
         private int _repositionCount;
         private int _scaleCount;
+        private int _zoomInCount;
+        private int _zoomOutCount;
         private int _rotationCount;
 
         // Per-gesture-segment state, reset whenever the active touch count
@@ -162,6 +164,8 @@ namespace NAS.Core
             _placedInstance = null;
             _repositionCount = 0;
             _scaleCount = 0;
+            _zoomInCount = 0;
+            _zoomOutCount = 0;
             _rotationCount = 0;
             _scaleMultiplier = 1f;
             _lastSliderDegrees = 0f;
@@ -169,6 +173,7 @@ namespace NAS.Core
             ResetPinchState();
             ResetRotationGestureState();
             PublishGestureCounts();
+            EventBus.Publish(new ZoomCountsUpdatedEvent(0, 0));
             EventBus.Publish(new CarScaleChangedEvent(_scaleMultiplier));
         }
 
@@ -521,8 +526,11 @@ namespace NAS.Core
                     if (!_scaleCountedThisGesture && Mathf.Abs(_scaleMultiplier - _scaleAtGestureStart) >= _scaleThresholdRatio)
                     {
                         _scaleCount++;
+                        if (ZoomGesture.DirectionOf(_scaleAtGestureStart, _scaleMultiplier) == ZoomDirection.In) _zoomInCount++;
+                        else _zoomOutCount++;
                         _scaleCountedThisGesture = true;
                         PublishGestureCounts();
+                        EventBus.Publish(new ZoomCountsUpdatedEvent(_zoomInCount, _zoomOutCount));
                     }
                 }
             }

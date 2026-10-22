@@ -24,6 +24,7 @@
     <Compile Include="../../Assets/Scripts/Core/ModelVariantRules.cs" />
     <Compile Include="../../Assets/Scripts/Core/Networking/SessionExpiryPolicy.cs" />
     <Compile Include="../../Assets/Scripts/Core/Networking/SessionRefreshPolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Core/ZoomGesture.cs" />
     <Compile Include="../../Assets/Scripts/Core/TrimStyles.cs" />
     <Compile Include="../../Assets/Scripts/Core/OptionMatch.cs" />
     <Compile Include="../../Assets/Scripts/Core/CustomizationSelection.cs" />
@@ -39,6 +40,7 @@
     <Compile Include="../../Assets/Tests/EditMode/ModelVariantRulesTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/SessionExpiryPolicyTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/SessionRefreshPolicyTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/ZoomGestureTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/TrimStylesTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/OptionMatchTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ModelCacheRulesTests.cs" />

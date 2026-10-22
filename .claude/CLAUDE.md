@@ -512,7 +512,10 @@ changed on this car. Prices: the customer API returns each car's `wheels`, `inte
 trim levels by the glow style's name (`OptionMatch`), and shows a "+R9 000" tag under any chip that costs extra. The whole choice lives in
 `GameManager.Customization` (`CustomizationSelection`, cleared per car and per AR visit), is sent on Confirm as `exteriorColorOptionId`,
 `wheelOptionId`, `interiorOptionId`, `trimLevelId` (0 = not chosen) and shows in the dashboard's Builds tab; the Estimator's price is the
-base price plus `Customization.OptionsTotal`. Only trim styles count toward `colourChangeCount`.
+base price plus `Customization.OptionsTotal`. The `VehicleInteraction` telemetry sent when leaving AR carries `colourChangeCount` (paint swatches),
+`trimChangeCount` (trim style changes), and `zoomInCount`/`zoomOutCount` (pinches that moved the scale by 5% or more, by direction, from
+`CarManipulationController`); wheel and interior switches have no field. There are no specification or gallery screens, so those two
+fields were dropped from the request (the backend stores 0).
 Still not built: the camera-feed gradient scrim.
 
 **TODO, not urgent — telemetry-sending isn't consistently factored out of the

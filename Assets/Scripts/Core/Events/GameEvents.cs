@@ -385,6 +385,18 @@ namespace NAS.Core.Events
         }
     }
 
+    /// <summary>A pinch was counted as a zoom in or out; carries the running totals.</summary>
+    public readonly struct ZoomCountsUpdatedEvent
+    {
+        public readonly int ZoomIn;
+        public readonly int ZoomOut;
+        public ZoomCountsUpdatedEvent(int zoomIn, int zoomOut)
+        {
+            ZoomIn = zoomIn;
+            ZoomOut = zoomOut;
+        }
+    }
+
     /// <summary>Raised by CarManipulationController whenever the placed car's scale multiplier changes, so ArViewportController can show the live real:virtual ratio next to the "Pinch to scale" hint.</summary>
     public readonly struct CarScaleChangedEvent
     {
