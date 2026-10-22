@@ -404,6 +404,13 @@ namespace NAS.Core.Events
         public LoadingStartedEvent(string message = null) => Message = message;
     }
 
+    /// <summary>Download progress, 0 to 1.</summary>
+    public readonly struct LoadingProgressEvent
+    {
+        public readonly float Fraction;
+        public LoadingProgressEvent(float fraction) => Fraction = fraction;
+    }
+
     /// <summary>Raised once the async process from a matching LoadingStartedEvent finishes (success or failure) to hide the overlay again.</summary>
     public readonly struct LoadingFinishedEvent { }
 
