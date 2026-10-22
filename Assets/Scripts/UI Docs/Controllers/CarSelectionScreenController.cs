@@ -136,7 +136,22 @@ namespace NAS.UI.Controllers
             _carsScrollView.RegisterCallback<PointerUpEvent>(OnCarTrackPointerUp);
             _carsScrollView.RegisterCallback<PointerCaptureOutEvent>(OnCarTrackPointerCaptureOut);
 
+            ShowDealershipLogo(root);
             UpdateFilteredCars();
+        }
+
+        private void ShowDealershipLogo(VisualElement root)
+        {
+            var dealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
+            var url = DealershipBranding.ImageUrl(dealership?.logoUrl, _apiBaseUrl);
+            var logo = root.Q<VisualElement>("header-logo");
+            if (url == null || logo == null || _thumbnailLoader == null) return;
+
+            _thumbnailLoader.RequestTexture(url, texture =>
+            {
+                if (this != null && texture != null)
+                    logo.style.backgroundImage = new StyleBackground(Background.FromTexture2D(texture));
+            });
         }
 
         private void InitializeCarData()
@@ -199,14 +214,7 @@ namespace NAS.UI.Controllers
         // needs prefixing with the same API base URL the vehicle catalog/auth
         // requests already use. Left as-is if it's already absolute (e.g. a
         // future CDN-hosted image), so this doesn't double-prefix.
-        private string ResolveImageUrl(string imageUrl)
-        {
-            if (imageUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                imageUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-                return imageUrl;
-
-            return string.IsNullOrEmpty(_apiBaseUrl) ? imageUrl : $"{_apiBaseUrl}{imageUrl}";
-        }
+        private string ResolveImageUrl(string imageUrl) => DealershipBranding.ImageUrl(imageUrl, _apiBaseUrl);
 
         private void PopulateDropdown()
         {

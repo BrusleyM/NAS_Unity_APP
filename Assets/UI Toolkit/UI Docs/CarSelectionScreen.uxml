@@ -11,7 +11,7 @@
                 <ui:Label text="Select Your Car" class="title motion-item"/>
                 <ui:Label text="Choose a model to begin your AR experience" class="subtitle motion-item"/>
             </ui:VisualElement>
-            <ui:VisualElement class="header-spacer"/>
+            <ui:VisualElement name="header-logo" class="header-spacer header-logo"/>
         </ui:VisualElement>
         <ui:VisualElement name="tools-container" class="tools-container motion-item">
             <ui:VisualElement name="types-container" class="dropdown-container">
