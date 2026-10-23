@@ -197,3 +197,20 @@
 .last-input-group {
     margin-bottom: 14%;
 }
+
+/* "I accept the terms and privacy notice" row on the register card. */
+.terms-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.terms-label {
+    margin-top: 0;
+    margin-left: 6px;
+    flex-shrink: 1;
+    -unity-text-align: middle-left;
+}

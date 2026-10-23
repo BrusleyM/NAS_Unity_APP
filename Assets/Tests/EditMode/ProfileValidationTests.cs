@@ -232,5 +232,20 @@ namespace NAS.Tests
             Assert.IsTrue(ProfileValidation.ValidatePasswordReset("123456", "BrandNewPass2!", "").ContainsKey("confirmPassword"));
             Assert.IsTrue(ProfileValidation.ValidatePasswordReset("123456", "BrandNewPass2!", "BrandNewPass3!").ContainsKey("confirmPassword"));
         }
+
+        // --- terms at registration -----------------------------------------------------
+
+        [Test]
+        public void RegisteringNeedsTheTermsTickedAndLoaded()
+        {
+            Assert.IsNull(ProfileValidation.ValidateTermsAcceptance(accepted: true, termsLoaded: true));
+            StringAssert.Contains("accept the terms", ProfileValidation.ValidateTermsAcceptance(accepted: false, termsLoaded: true));
+        }
+
+        [Test]
+        public void WithoutTheTermsLoadedTheCustomerIsToldToCheckTheConnectionEvenIfTheBoxIsTicked()
+        {
+            StringAssert.Contains("could not be loaded", ProfileValidation.ValidateTermsAcceptance(accepted: true, termsLoaded: false));
+        }
     }
 }

@@ -8,6 +8,7 @@ namespace NAS.Core.Auth
     {
         void Login(CustomerLoginRequest request, Action<ApiResult<CustomerAuthResponse>> completed);
         void Register(CustomerRegisterRequest request, Action<ApiResult<CustomerAuthResponse>> completed);
+        void GetTerms(Action<ApiResult<TermsResponse>> completed);
         /// <summary>The emailed code proves the address and signs the customer in (the answer is a normal login response).</summary>
         void VerifyEmail(VerifyEmailRequest request, Action<ApiResult<CustomerAuthResponse>> completed);
         void ResendVerification(AccountIdentifierRequest request, Action<ApiResult<EmptyResponse>> completed);

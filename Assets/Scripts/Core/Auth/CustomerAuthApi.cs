@@ -26,6 +26,11 @@ namespace NAS.Core.Auth
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/register", request, completed));
         }
 
+        public void GetTerms(Action<ApiResult<TermsResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.GetJson("api/customer/auth/terms", completed));
+        }
+
         public void VerifyEmail(VerifyEmailRequest request, Action<ApiResult<CustomerAuthResponse>> completed)
         {
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/auth/verify-email", request, completed));
