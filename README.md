@@ -132,9 +132,10 @@ Each one's address is `Assets/Resources/Config/ApiSettings.<Name>.asset`,
 loaded by `EnvironmentResolver`; the same environment value also decides
 whether to skip TLS certificate validation (see below), so there's exactly
 one switch to flip, not several that have to be kept in sync by hand.
-**Defaults to `Local`, and should stay that way in anything you
-commit/push.** `EnvironmentResolver` logs which one is active
-(`[Environment] Local -> http://localhost:5080`) so you can confirm which mode you're in.
+**The committed setting is `Staging`** (the Game Manager prefab). To test against your own
+machine pick `Local`, `ApiDomain` or `ApiIp` in the editor and do not commit that change.
+`EnvironmentResolver` logs which one is active
+(`[Environment] Staging -> https://nas-api.neoxr.co.za`) so you can confirm which mode you're in.
 
 *(This used to be a bool living directly on `AuthController`, with a
 separate bool on the `ApiSettings` asset controlling certificate bypass.
