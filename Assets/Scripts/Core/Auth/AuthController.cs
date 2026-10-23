@@ -134,6 +134,7 @@ namespace NAS.Core.Auth
         {
             EventBus.Subscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Subscribe<RegisterRequestedEvent>(HandleRegisterRequested);
+            EventBus.Subscribe<TermsRequestedEvent>(HandleTermsRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(HandleLogoutRequested);
             EventBus.Subscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Subscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
@@ -146,6 +147,7 @@ namespace NAS.Core.Auth
         {
             EventBus.Unsubscribe<LoginRequestedEvent>(HandleLoginRequested);
             EventBus.Unsubscribe<RegisterRequestedEvent>(HandleRegisterRequested);
+            EventBus.Unsubscribe<TermsRequestedEvent>(HandleTermsRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(HandleLogoutRequested);
             EventBus.Unsubscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Unsubscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
@@ -197,7 +199,49 @@ private void HandleLoginRequested(LoginRequestedEvent evt)
             }, result => HandleLoginResult(identifier, result));
         }
 
-private void HandleRegisterRequested(RegisterRequestedEvent evt)
+        // The terms are fetched once per run and kept: registration sends the version the customer was shown.
+        private NAS.Core.Auth.Dtos.TermsResponse _terms;
+        private bool _termsRequestInProgress;
+
+        private void HandleTermsRequested(TermsRequestedEvent evt)
+        {
+            if (_terms != null)
+            {
+                PublishTerms(_terms);
+                return;
+            }
+            if (_termsRequestInProgress) return;
+            if (_authApi == null)
+            {
+                EventBus.Publish(new TermsLoadedEvent(null, null, "Authentication is not configured."));
+                return;
+            }
+
+            _termsRequestInProgress = true;
+            _authApi.GetTerms(result =>
+            {
+                _termsRequestInProgress = false;
+                if (result.Success && result.Value != null && !string.IsNullOrEmpty(result.Value.version))
+                {
+                    _terms = result.Value;
+                    PublishTerms(_terms);
+                    return;
+                }
+                Debug.LogWarning($"{LogPrefix} Terms could not be loaded. Status: {result.Error.StatusCode}.");
+                EventBus.Publish(new TermsLoadedEvent(null, null, result.Success ? "The terms could not be read." : result.Error.UserMessage));
+            });
+        }
+
+        private static void PublishTerms(NAS.Core.Auth.Dtos.TermsResponse terms)
+        {
+            var sections = new List<KeyValuePair<string, string>>();
+            if (terms.sections != null)
+                foreach (var section in terms.sections)
+                    sections.Add(new KeyValuePair<string, string>(section.heading, section.body));
+            EventBus.Publish(new TermsLoadedEvent(terms.version, sections));
+        }
+
+        private void HandleRegisterRequested(RegisterRequestedEvent evt)
         {
             if (_requestInProgress)
             {
@@ -233,6 +277,13 @@ private void HandleRegisterRequested(RegisterRequestedEvent evt)
             else if (evt.ConfirmPassword != evt.Password)
                 errors["confirmPassword"] = "Passwords do not match.";
 
+            var termsError = ProfileValidation.ValidateTermsAcceptance(evt.AcceptedTerms, _terms != null);
+            if (termsError != null)
+            {
+                errors["terms"] = termsError;
+                if (_terms == null) HandleTermsRequested(default);   // try again so the next tap can work
+            }
+
             if (errors.Count > 0)
             {
                 PublishFieldErrors(errors);
@@ -253,7 +304,9 @@ private void HandleRegisterRequested(RegisterRequestedEvent evt)
                 lastName = evt.LastName.Trim(),
                 cellNumber = evt.CellNumber.Trim(),
                 email = evt.Email.Trim(),
-                password = evt.Password
+                password = evt.Password,
+                acceptedTerms = true,
+                termsVersion = _terms.version
             }, result => HandleRegisterResult(evt.Email.Trim(), result));
         }
 

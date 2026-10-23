@@ -21,6 +21,13 @@ namespace NAS.Core
         // Same shape the server enforces: starts with a letter, then letters, digits, dot or underscore; 3 to 30 characters.
         private static readonly Regex UsernameRegex = new Regex(@"^[a-z][a-z0-9._]{2,29}$", RegexOptions.Compiled);
 
+        /// <summary>Registration needs the box ticked, and needs the terms loaded so the server can be told which version was accepted.</summary>
+        public static string ValidateTermsAcceptance(bool accepted, bool termsLoaded)
+        {
+            if (!termsLoaded) return "The terms could not be loaded. Check your connection and try again.";
+            return accepted ? null : "Please accept the terms and privacy notice to register.";
+        }
+
         public static Dictionary<string, string> ValidateProfile(string firstName, string lastName, string cellNumber)
         {
             var errors = new Dictionary<string, string>();
