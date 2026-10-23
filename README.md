@@ -58,8 +58,14 @@ from UI controllers — `Assets/Scripts/Core/Networking/ApiClient.cs` wraps
   and `api/customer/auth/login` against `ApiSettings.BaseUrl` (defaults to
   `http://localhost:5080`), and `AuthController` maps the result into
   `AuthSucceededEvent`/`AuthFailedEvent`.
-- The access token is persisted via `TokenStorage`/`AuthSession`
-  (`Assets/Scripts/Core/Auth/`).
+- The sign-in stays saved across launches (`TokenStorage`/`AuthSession`,
+  `Assets/Scripts/Core/Auth/`, in PlayerPrefs for now). Login also returns a
+  30-day refresh token. At launch `AuthController` swaps it for a new access
+  token and goes straight to dealership selection (the splash waits for it); while
+  signed in it swaps again five minutes before the hour-long access token lapses
+  (`SessionRefreshPolicy`), and when the server rejects a token. Only the
+  server refusing the refresh token (401) signs the customer out; no connection
+  keeps the saved login. Sign Out revokes it on the server.
 
 **Not done yet:**
 
@@ -112,25 +118,24 @@ something buried in a UI controller. `GameManager` (on the persistent
 `GameManager` GameObject, `DontDestroyOnLoad`) has an `Environment` field:
 
 - `AppEnvironment.Local` — the default. `http://localhost:5080`. Always
-  safe, always works, this is what's used normally.
+  safe, always works in the editor; this is what's used normally.
 - `AppEnvironment.ApiDomain` — `https://api.nas.test:8443`, i.e. the nginx
   proxy above. Only works on a machine that's actually run the
   `nginx`/`mkcert`/`/etc/hosts` setup in `NAS_Backend/nginx/`.
+- `AppEnvironment.ApiIp` — the same proxy by this Mac's LAN IP, for a phone
+  on a network that can't resolve `api.nas.test`. Edit
+  `Assets/Resources/Config/ApiSettings.ApiIp.asset` when the IP changes.
+- `AppEnvironment.Staging` — the hosted staging backend. A release build
+  always uses this, whatever the dropdown says.
 
-`AuthController` reads `GameManager.Instance.CurrentEnvironment` in
-`Start()` (not `Awake()` — Unity doesn't guarantee `Awake()` order across
-different GameObjects, and `GameManager.Instance` needs to already be set;
-`Start()` is guaranteed to run after every object's `Awake()` has) and picks
-between its own `_apiSettings` (Local) and `_apiDomainSettings` (ApiDomain,
-`Assets/Scripts/Core/Networking/ApiSettings.ApiDomain.asset`) accordingly —
-the same environment value also decides whether to skip TLS certificate
-validation (see below), so there's exactly one switch to flip, not several
-that have to be kept in sync by hand. **Defaults to `Local`, and should stay
-that way in anything you commit/push** — enabling `ApiDomain` on a machine
-without the matching local setup makes auth fail silently. Verified working
-both ways in Play mode, including a full login attempt through each path —
-`Start()` logs which one is active (`[NAS Auth] Ready. API base URL: ...`)
-so you can confirm which mode you're in.
+Each one's address is `Assets/Resources/Config/ApiSettings.<Name>.asset`,
+loaded by `EnvironmentResolver`; the same environment value also decides
+whether to skip TLS certificate validation (see below), so there's exactly
+one switch to flip, not several that have to be kept in sync by hand.
+**The committed setting is `Staging`** (the Game Manager prefab). To test against your own
+machine pick `Local`, `ApiDomain` or `ApiIp` in the editor and do not commit that change.
+`EnvironmentResolver` logs which one is active
+(`[Environment] Staging -> https://nas-api.neoxr.co.za`) so you can confirm which mode you're in.
 
 *(This used to be a bool living directly on `AuthController`, with a
 separate bool on the `ApiSettings` asset controlling certificate bypass.

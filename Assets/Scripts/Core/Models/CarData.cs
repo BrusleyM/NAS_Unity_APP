@@ -38,5 +38,10 @@ namespace NAS.Core.Models
 
         [Tooltip("Exterior paint options for the AR Customize sheet's Paint category. Empty for hand-authored local fixtures.")]
         public List<CarColorOption> exteriorColors = new List<CarColorOption>();
+
+        [Tooltip("Wheel, interior and trim-level options (with their price adjustments) for the Customize sheet. Matched to the model's styles by name.")]
+        public List<CarColorOption> wheels = new List<CarColorOption>();
+        public List<CarColorOption> interiors = new List<CarColorOption>();
+        public List<CarColorOption> trimLevels = new List<CarColorOption>();
     }
 }

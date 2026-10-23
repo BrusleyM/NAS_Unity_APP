@@ -275,23 +275,22 @@ the simplest default for anyone without the nginx/mkcert setup running;
 makes auth fail silently. See the README's "Optional: HTTPS for testing on a
 physical device" section for the full explanation.
 
-**Dev / Staging / Production.** `AppEnvironment` has five values:
-`Local`, `ApiDomain`, `ApiIp` (all "Dev": my machine, or my machine through
-the nginx proxy) plus `Staging` and `Production` (hosted backends with real
-certificates). Which one a build **actually uses** is
+**Environments.** `AppEnvironment` has four values: `Local`
+(`http://localhost:5080`, the editor), `ApiDomain` (`https://api.nas.test:8443`
+through the nginx proxy), `ApiIp` (the same proxy by this Mac's LAN IP, for a
+phone on a network that cannot resolve the name; edit its asset when the IP
+changes) and `Staging` (the SmarterASP.NET site at `https://nas-api.neoxr.co.za`,
+real certificate). Each one's address is
+`Resources/Config/ApiSettings.<Env>.asset`, loaded by `EnvironmentResolver`
+(no Inspector wiring to forget); a missing asset is a loud error, never a silent
+fall back. Which one a build **actually uses** is
 `EnvironmentPolicy.Effective(...)` (pure logic, EditMode-tested): Editor and
 Development builds honour `GameManager._environment`; a **release build
-ignores it** and is `Production` — or `Staging` when built with the scripting
-define `NAS_STAGING_BUILD` — so a release can never ship pointing at
-localhost. `GameManager.CurrentEnvironment` returns the effective value, and
-`EnvironmentResolver` loads Staging/Production `ApiSettings` from
-`Resources/Config/ApiSettings.<Env>.asset` (no Inspector wiring to forget);
-a missing asset is a loud error, never a silent fall back to Local.
-`TrustAnyCertificate` is true only for ApiDomain/ApiIp. Only Dev and Staging
-really exist: Staging is the SmarterASP.NET site at `https://nas-api.neoxr.co.za`
-(one site, one Postgres database on the trial plan). `Production` is defined but
-not created, so its asset currently points at the same host; when production is
-built, give it its own hostname and change that one asset. The full standard is
+ignores it** and is `Staging`, so a release can never ship pointing at
+localhost. `TrustAnyCertificate` is true only for ApiDomain/ApiIp. There is no
+Production yet: when it exists, add it as a new enum value (numbers are stored in
+the scene and never change), give it its own asset, and return it from
+`Effective` for release builds. The full standard is
 `NAS_Backend/docs/ENVIRONMENTS.md`.
 
 **Recurring gotcha: adding a cross-folder script reference can compile
@@ -466,8 +465,8 @@ Screen flow, as actually wired:
 
 **Built so far:** top bar (Back button, centered car name label, circular cyan
 Confirm/checkmark button), a bottom-center Settings button that opens a
-placeholder "Customize" bottom sheet (drag handle, header with close button, just
-a "Coming soon" label — tapping the backdrop or the close button closes it), and
+"Customize" bottom sheet (drag handle, header with close button, the category
+buttons below — tapping the backdrop or the close button closes it), and
 real manipulation of the placed car — one-finger drag to reposition, two-finger
 pinch to scale (clamped 1x–2.5x real-world size, never smaller — shrinking below
 1:1 defeats the point of seeing it at true scale), and a rotation slider (`-180°`
@@ -501,17 +500,23 @@ model is retrained on real outcomes), and NAS-Admin explains why. This is the
 only real source of the `test_drive_requested` signal the ML training data
 counts.
 
-**Not yet built:** the camera-feed gradient scrim, and the real contents of the
-"Customize" sheet (the Wheel/Paint/Trims/Dashboard 4-item grid, Paint's 5 color
-swatches, the other three categories' text-choice rows) — the sheet currently
-opens/closes but shows only placeholder text. Deliberately deferred — there's no
-customer-facing data model yet for which options are actually configurable per car
-(see the "Planned: API-driven vehicle catalog" section above; trim/color/interior/
-wheel data was explicitly scoped out of the car-selection API work). Build this
-grid once that data exists, following the
-same pattern as the top bar (scene-placed controller in `AR Scene.unity`, not
-`AddComponent`-dynamic — this scene only ever shows one screen, so it doesn't need
-`ParentPageController`'s router pattern).
+**Customize sheet** (four buttons; Dashboard was dropped). **Paint** swaps the body colour (the car's catalogue colours,
+`CarData.exteriorColors`, saved with the build). **Wheel** and **Interior** switch between the model's alternative meshes
+(`Wheels_A`/`Wheels_B`, `Interior_A`/`Interior_B` with the door cards): `CarVariantSwitcher` on the placed car shows the chosen
+letter and hides the rest (`ModelVariantRules`), the buttons show one chip per letter the car has, coloured by its rim or leather.
+**Trims** swap the `Trim*` parts to the `NAS/TrimGlow` shader (`Resources/Shaders/TrimGlow.shader`, loaded by `TrimGlow`): steady,
+pulsing or flowing glow, presets in `TrimStyles` (first one, Original, puts the car's own trim back). `CarTrimController` on the placed
+car applies them. Models built before the A/B pass (the nine older demo cars) have no variants, so those buttons say the part can't be
+changed on this car. Prices: the customer API returns each car's `wheels`, `interiors` and `trimLevels` (with `priceAdjustment`) next to
+`exteriorColors`; the app matches wheel/interior chips to option rows by the style letter their name ends in (`Style B`) and trim chips to
+trim levels by the glow style's name (`OptionMatch`), and shows a "+R9 000" tag under any chip that costs extra. The whole choice lives in
+`GameManager.Customization` (`CustomizationSelection`, cleared per car and per AR visit), is sent on Confirm as `exteriorColorOptionId`,
+`wheelOptionId`, `interiorOptionId`, `trimLevelId` (0 = not chosen) and shows in the dashboard's Builds tab; the Estimator's price is the
+base price plus `Customization.OptionsTotal`. The `VehicleInteraction` telemetry sent when leaving AR carries `colourChangeCount` (paint swatches),
+`trimChangeCount` (trim style changes), and `zoomInCount`/`zoomOutCount` (pinches that moved the scale by 5% or more, by direction, from
+`CarManipulationController`); wheel and interior switches have no field. There are no specification or gallery screens, so those two
+fields were dropped from the request (the backend stores 0).
+Still not built: the camera-feed gradient scrim.
 
 **TODO, not urgent — telemetry-sending isn't consistently factored out of the
 controller that owns the interaction.** `ObjectPlacerController` still builds
@@ -549,12 +554,18 @@ the Inspector, so this specifically matters for anything that *is* Inspector-wir
 ## Tigris storage (3D models)
 
 **The app holds no storage credentials.** To show a car, `SelectedCarModelLoader` calls
-`GameManager.DownloadModel(vehicleId)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
+`GameManager.DownloadModel(vehicleId, modelKey)` -> `ModelDownloader`: (1) `GET api/customer/vehicles/{id}/model-url` (customer token)
 returns a short-lived pre-signed link for exactly that vehicle's file, (2) a plain `UnityWebRequest` fetches the file from
 the link. The API signs with the environment's read-only Tigris key, which lives in the API host's settings
 (`Storage__*`), never in this repo or the build. Which bucket is used follows from which API the app talks to
 (`CurrentEnvironment`), so there is no storage config in the app at all. Full convention, key handling and the
 backend endpoint: `NAS_Backend/docs/STORAGE.md`. For **3D AR assets only**, not 2D catalog thumbnails.
+
+**Models are cached on the device** (`ModelDiskCache` in `persistentDataPath/models`, 500 MB, least recently used out first; rules in
+`ModelCacheRules`). A cached car is still asked for a link, then fetched with `If-None-Match`: Tigris answers 304 (use the file) or sends
+the new one when the dealer replaced it. A download goes to `<name>.glb.part`; a dropped connection resumes with `Range` + `If-Match`
+(412/416 restart from zero), 3 attempts. If the API or network is down but the car is cached, the cached copy is used.
+`LoadingProgressEvent` drives the percentage on the loading overlay. Tigris' 206/304/412/416 behaviour was checked against the dev bucket.
 
 Uploading is not done from the app or the Editor: use `NAS_Backend/tools/tigris-upload-model.sh`.
 A model's key is `dealerships/{dealershipId}/vehicles/{vehicleId}/model.glb` (`vehicle_model.tigris_model_key`); the API
@@ -563,8 +574,8 @@ refuses any other key on a vehicle. A vehicle with no key, an inactive vehicle, 
 
 Deleted (11 Oct 2026): the AWS SDK plugin, `IStorageService`/`DevStorageService`/`DevStorageConfig`, `StoragePolicy` and the
 per-environment storage config assets (they would have embedded a key in every build), the in-Editor uploader
-(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. `_useProduction` on
-`GameManager` is unused (kept so the scene's serialized data is untouched).
+(`TigrisStorageManager`), the AssetBundle experiment and the "asset manager" object in the AR scene. The `_useProduction` flag on
+`GameManager` was removed (it was unused).
 
 **Reaching Tigris from a terminal:** the buckets live in your Fly.io account. `fly auth login` (opens the browser), then
 `fly storage list` / `fly storage dashboard <bucket>` to manage buckets and create access keys. For copying files use the

@@ -12,6 +12,8 @@ namespace NAS.Core.Auth
         void VerifyEmail(VerifyEmailRequest request, Action<ApiResult<CustomerAuthResponse>> completed);
         void ResendVerification(AccountIdentifierRequest request, Action<ApiResult<EmptyResponse>> completed);
         void ForgotPassword(AccountIdentifierRequest request, Action<ApiResult<EmptyResponse>> completed);
+        void Refresh(RefreshTokenRequest request, Action<ApiResult<CustomerAuthResponse>> completed);
+        void Logout(RefreshTokenRequest request, Action<ApiResult<EmptyResponse>> completed);
         void ResetPassword(ResetPasswordRequest request, Action<ApiResult<EmptyResponse>> completed);
     }
 }

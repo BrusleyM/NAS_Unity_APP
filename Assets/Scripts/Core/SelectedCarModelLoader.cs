@@ -2,6 +2,7 @@ using GLTFast;
 using NAS.Core.Events;
 using NAS.Core.Interfaces;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace NAS.Core
 {
@@ -90,7 +91,7 @@ namespace NAS.Core
                     return;
                 }
 
-                var downloadResult = await GameManager.Instance.DownloadModel(selectedCar.id);
+                var downloadResult = await GameManager.Instance.DownloadModel(selectedCar.id, modelKey);
                 if (this == null) return; // AR Scene unloaded mid-download
 
                 if (!downloadResult.IsSuccess)
@@ -125,6 +126,8 @@ namespace NAS.Core
                 // it as a hierarchy separator) and says nothing useful in the Hierarchy window. Nothing looks this
                 // object up by name.
                 var modelRoot = new GameObject("SelectedCarModel_" + selectedCar.modelName);
+                // new GameObject() lands in the active scene (Main App); the car belongs with the XR Origin in the AR scene.
+                SceneManager.MoveGameObjectToScene(modelRoot, gameObject.scene);
                 modelRoot.transform.position = new Vector3(0f, -1000f, 0f);
                 _currentModelRoot = modelRoot;
 
@@ -155,6 +158,8 @@ namespace NAS.Core
                 // door-open animation) read this instead of re-deriving
                 // categories from material names themselves.
                 modelRoot.AddComponent<CarComponents>();
+                modelRoot.AddComponent<CarVariantSwitcher>();
+                modelRoot.AddComponent<CarTrimController>();
                 ContactShadowFactory.Attach(modelRoot);
 
                 modelRoot.SetActive(false);

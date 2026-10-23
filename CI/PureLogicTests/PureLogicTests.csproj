@@ -2,7 +2,7 @@
   <!--
     Runs the project's engine-free logic and its NUnit tests with plain `dotnet test`, so CI needs no
     Unity licence. Only files that have NO UnityEngine dependency may be linked here:
-    ScreenVisitTracker, AppEnvironment, EnvironmentPolicy, ProfileValidation, AccountRecovery, ModelVariantRules, SessionExpiryPolicy.
+    ScreenVisitTracker, AppEnvironment, EnvironmentPolicy, ProfileValidation, AccountRecovery, ModelVariantRules, SessionExpiryPolicy, SessionRefreshPolicy, ModelCacheRules, ModelDiskCache, DealershipBranding, AccentColor, TrimStyles, OptionMatch, CustomizationSelection.
     The same test files also run inside Unity (Test Runner > EditMode); this proves they stay
     engine-free and pass.
   -->
@@ -23,6 +23,18 @@
     <Compile Include="../../Assets/Scripts/Core/Motion/Easing.cs" />
     <Compile Include="../../Assets/Scripts/Core/ModelVariantRules.cs" />
     <Compile Include="../../Assets/Scripts/Core/Networking/SessionExpiryPolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Core/Networking/SessionRefreshPolicy.cs" />
+    <Compile Include="../../Assets/Scripts/Core/ZoomGesture.cs" />
+    <Compile Include="../../Assets/Scripts/Core/Services/LoanCalculator.cs" />
+    <Compile Include="../../Assets/Scripts/Core/Interface/ILoanCalculator.cs" />
+    <Compile Include="../../Assets/Scripts/Core/Money.cs" />
+    <Compile Include="../../Assets/Scripts/Core/TrimStyles.cs" />
+    <Compile Include="../../Assets/Scripts/Core/OptionMatch.cs" />
+    <Compile Include="../../Assets/Scripts/Core/CustomizationSelection.cs" />
+    <Compile Include="../../Assets/Scripts/Core/ModelCacheRules.cs" />
+    <Compile Include="../../Assets/Scripts/Core/ModelDiskCache.cs" />
+    <Compile Include="../../Assets/Scripts/Core/DealershipBranding.cs" />
+    <Compile Include="../../Assets/Scripts/Core/AccentColor.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ScreenVisitTrackerTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/EnvironmentPolicyTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ProfileValidationTests.cs" />
@@ -30,5 +42,15 @@
     <Compile Include="../../Assets/Tests/EditMode/EasingTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/ModelVariantRulesTests.cs" />
     <Compile Include="../../Assets/Tests/EditMode/SessionExpiryPolicyTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/SessionRefreshPolicyTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/ZoomGestureTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/LoanCalculatorTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/MoneyTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/TrimStylesTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/OptionMatchTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/ModelCacheRulesTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/ModelDiskCacheTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/DealershipBrandingTests.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/AccentColorTests.cs" />
   </ItemGroup>
 </Project>

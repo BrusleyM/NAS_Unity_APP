@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using NAS.Core.Events;
 using NAS.Core.Motion;
 using NAS.Core.Interfaces;
@@ -428,6 +429,7 @@ namespace NAS.Core
                         else
                         {
                             placedInstance = Instantiate(prefab);
+                            SceneManager.MoveGameObjectToScene(placedInstance, gameObject.scene);
                             // The live-instance car path gets its shadow once,
                             // in SelectedCarModelLoader, when the model is
                             // first built - this Instantiate() branch is the
@@ -511,6 +513,7 @@ namespace NAS.Core
                             // matching it exactly every frame, so a tracking
                             // correction plays out as a glide, not a pop.
                             var pivot = new GameObject("Car Anchor Pivot (smoothed)");
+                            SceneManager.MoveGameObjectToScene(pivot, gameObject.scene);
                             pivot.transform.SetPositionAndRotation(anchor.transform.position, anchor.transform.rotation);
                             var smoother = pivot.AddComponent<AnchorFollowSmoother>();
                             smoother.Configure(_anchorFollowPositionSmoothTime, _anchorFollowRotationDegreesPerSecond);

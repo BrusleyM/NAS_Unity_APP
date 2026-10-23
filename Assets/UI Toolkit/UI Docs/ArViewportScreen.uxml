@@ -63,14 +63,14 @@
                     <ui:Label text="&#9638;" class="category-icon" />
                     <ui:Label text="Trims" class="category-label" />
                 </ui:Button>
-                <ui:Button name="category-dashboard" class="category-button">
+                <ui:Button name="category-interior" class="category-button">
                     <ui:Label text="&#9685;" class="category-icon" />
-                    <ui:Label text="Dashboard" class="category-label" />
+                    <ui:Label text="Interior" class="category-label" />
                 </ui:Button>
             </ui:VisualElement>
 
             <ui:VisualElement name="swatch-row" class="swatch-row" style="display: none;" />
-            <ui:Label name="category-placeholder-text" text="Coming soon" class="sheet-placeholder-text" style="display: none;" />
+            <ui:Label name="swatch-caption" class="sheet-caption" style="display: none;" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

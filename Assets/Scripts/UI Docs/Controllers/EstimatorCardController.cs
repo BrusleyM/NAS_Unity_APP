@@ -14,6 +14,7 @@ namespace NAS.UI.Controllers
     {
         [SerializeField] private Label _vehicleInfoLabel;
         [SerializeField] private Label _retailPriceLabel;
+        private Label _retailPriceCaption;
         [SerializeField] private TextField _depositField;
         [SerializeField] private TextField _tradeInField;
         [SerializeField] private TextField _loanTermField;
@@ -41,6 +42,7 @@ namespace NAS.UI.Controllers
         private VisualElement _balloonSliderFill;
 
         private VehicleInfo _vehicle;
+        private float _optionsTotal;
         private ILoanCalculator _loanCalculator;
         private IEstimatorApi _estimatorApi;
         private bool _isSubmitting;
@@ -76,7 +78,20 @@ namespace NAS.UI.Controllers
             // Use selected car from GameManager if available, otherwise fallback to default
             if (GameManager.Instance != null && GameManager.Instance.SelectedCar != null)
             {
-                _vehicle = GameManager.Instance.SelectedCar;
+                // A copy priced with the chosen options; the selected car keeps its base price.
+                var selected = GameManager.Instance.SelectedCar;
+                _optionsTotal = GameManager.Instance.Customization.OptionsTotal;
+                _vehicle = new VehicleInfo
+                {
+                    id = selected.id,
+                    modelName = selected.modelName,
+                    retailPrice = selected.retailPrice + _optionsTotal,
+                    tigrisModelKey = selected.tigrisModelKey,
+                    exteriorColors = selected.exteriorColors,
+                    wheels = selected.wheels,
+                    interiors = selected.interiors,
+                    trimLevels = selected.trimLevels
+                };
             }
             else
             {
@@ -90,7 +105,8 @@ namespace NAS.UI.Controllers
             _deposit = 0f;
             _tradeIn = 0f;
             _loanTerm = 48;
-            _interestRate = 4.5f;
+            var dealership = GameManager.Instance != null ? GameManager.Instance.SelectedDealership : null;
+            _interestRate = DealershipBranding.StartingInterestRate(dealership != null ? dealership.interestRate : 0f);
             _balloonPercent = 0f;
 
             _initialDeposit = _deposit;
@@ -125,6 +141,7 @@ namespace NAS.UI.Controllers
             if (_balloonInfoLabel == null) _balloonInfoLabel = root.Q<Label>("balloon-info");
             if (_loanInterestInfoLabel == null) _loanInterestInfoLabel = root.Q<Label>("loan_interest_info");
             if (_sendButton == null) _sendButton = root.Q<Button>("send-button");
+            if (_retailPriceCaption == null) _retailPriceCaption = root.Q<Label>("retail-price-caption");
             if (_balloonContainer == null) _balloonContainer = root.Q<VisualElement>("balloon-info-container");
             if (_sendErrorLabel == null) _sendErrorLabel = root.Q<Label>("estimator-error-label");
 
@@ -134,7 +151,9 @@ namespace NAS.UI.Controllers
             // GameManager; retail price already used the real value, this
             // brings the vehicle-info label in line with it.
             if (_vehicleInfoLabel != null) _vehicleInfoLabel.text = _vehicle.modelName;
-            _retailPriceLabel.text = $"R{_vehicle.retailPrice:N0}";
+            _retailPriceLabel.text = Money.Rand(_vehicle.retailPrice);
+            if (_retailPriceCaption != null)
+                _retailPriceCaption.text = _optionsTotal > 0f ? $"Price with options ({Money.Rand(_optionsTotal)})" : "Retail Price";
             
             _depositField.value = $"{_deposit}";
             _tradeInField.value = $"{_tradeIn}";
@@ -279,20 +298,20 @@ namespace NAS.UI.Controllers
         {
             float financed = _vehicle.retailPrice - _deposit - _tradeIn;
             if (financed < 0) financed = 0;
-            _financedAmountLabel.text = $"R{financed:N0}";
+            _financedAmountLabel.text = Money.Rand(financed);
             
             float balloonAmount = financed * (_balloonPercent / 100f);
             _balloonPercentLabel.text = $"{_balloonPercent:F0}%";
-            _balloonDollarLabel.text = $"({balloonAmount:C0})";
+            _balloonDollarLabel.text = $"({Money.Rand(balloonAmount)})";
             _interestValueLabel.text = $"{_interestRate:F1}%";
             _loanInterestInfoLabel.text = $"* Estimated payment based on {_interestRate:F1}% interest. Actual rates may vary.";
             
             float monthly = _loanCalculator.CalculateMonthlyPayment(financed, balloonAmount, _loanTerm, _interestRate);
-            _monthlyPaymentLabel.text = $"{monthly:C0}";
+            _monthlyPaymentLabel.text = Money.Rand(monthly);
             
             if (_balloonPercent > 0)
             {
-                _balloonInfoLabel.text = $"+ {balloonAmount:C0} balloon due at end";
+                _balloonInfoLabel.text = $"+ {Money.Rand(balloonAmount)} balloon due at end";
                 _balloonContainer.style.display = DisplayStyle.Flex;
             }
             else

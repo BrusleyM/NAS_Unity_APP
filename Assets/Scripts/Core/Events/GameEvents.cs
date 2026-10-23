@@ -309,6 +309,32 @@ namespace NAS.Core.Events
         public PaintColorSelectedEvent(string hexCode) => HexCode = hexCode;
     }
 
+    /// <summary>A trim glow style was picked in the Customize sheet; a null hex puts the car's own trim back.</summary>
+    public readonly struct TrimStyleSelectedEvent
+    {
+        public readonly string Hex;
+        public readonly int Mode;
+        public readonly float Intensity;
+        public TrimStyleSelectedEvent(string hex, int mode, float intensity)
+        {
+            Hex = hex;
+            Mode = mode;
+            Intensity = intensity;
+        }
+    }
+
+    /// <summary>A wheel or interior style (variant "A", "B", ...) was picked in the Customize sheet.</summary>
+    public readonly struct ModelVariantSelectedEvent
+    {
+        public readonly string Group;
+        public readonly string Variant;
+        public ModelVariantSelectedEvent(string group, string variant)
+        {
+            Group = group;
+            Variant = variant;
+        }
+    }
+
     /// <summary>Raised by ArViewportController whenever the Customize sheet opens/closes, so CarManipulationController can suspend touch manipulation while the user is tapping swatches instead of dragging the car underneath them.</summary>
     public readonly struct CustomizeSheetToggledEvent
     {
@@ -359,6 +385,18 @@ namespace NAS.Core.Events
         }
     }
 
+    /// <summary>A pinch was counted as a zoom in or out; carries the running totals.</summary>
+    public readonly struct ZoomCountsUpdatedEvent
+    {
+        public readonly int ZoomIn;
+        public readonly int ZoomOut;
+        public ZoomCountsUpdatedEvent(int zoomIn, int zoomOut)
+        {
+            ZoomIn = zoomIn;
+            ZoomOut = zoomOut;
+        }
+    }
+
     /// <summary>Raised by CarManipulationController whenever the placed car's scale multiplier changes, so ArViewportController can show the live real:virtual ratio next to the "Pinch to scale" hint.</summary>
     public readonly struct CarScaleChangedEvent
     {
@@ -402,6 +440,13 @@ namespace NAS.Core.Events
     {
         public readonly string Message;
         public LoadingStartedEvent(string message = null) => Message = message;
+    }
+
+    /// <summary>Download progress, 0 to 1.</summary>
+    public readonly struct LoadingProgressEvent
+    {
+        public readonly float Fraction;
+        public LoadingProgressEvent(float fraction) => Fraction = fraction;
     }
 
     /// <summary>Raised once the async process from a matching LoadingStartedEvent finishes (success or failure) to hide the overlay again.</summary>
@@ -459,5 +504,22 @@ namespace NAS.Core.Events
     {
         public readonly string Message;
         public SessionExpiredEvent(string message) { Message = message; }
+    }
+
+    /// <summary>A new access token for the same customer, so nothing navigates.</summary>
+    public readonly struct AccessTokenRefreshedEvent
+    {
+        public readonly string AccessToken;
+        public AccessTokenRefreshedEvent(string accessToken) { AccessToken = accessToken; }
+    }
+
+    /// <summary>The server refused the access token; AuthController tries the refresh token before signing out.</summary>
+    public readonly struct AccessTokenRejectedEvent { }
+
+    /// <summary>Signing back in with the saved login at launch has finished.</summary>
+    public readonly struct SessionRestoreFinishedEvent
+    {
+        public readonly bool Restored;
+        public SessionRestoreFinishedEvent(bool restored) { Restored = restored; }
     }
 }

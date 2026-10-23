@@ -58,6 +58,12 @@
     flex-shrink: 0;
 }
 
+/* The dealership's logo, when it has one, fills the spacer opposite the menu button. */
+.header-logo {
+    height: 36px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+
 .title {
     font-size: 24px;
     -unity-text-align: middle-center;

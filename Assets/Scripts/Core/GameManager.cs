@@ -10,115 +10,50 @@ using UnityEngine;
 namespace NAS.Core
 {
     /// <summary>
-    /// Holds session state and owns the storage service. It no longer has its
-    /// CurrentUser/SelectedCar properties set directly by whichever controller
-    /// happens to be handling a click — it derives them by listening to the
-    /// same domain events everything else reacts to.
+    /// Holds session state and owns the storage service. CurrentUser/SelectedCar are derived by
+    /// listening to domain events rather than being set by whichever controller handles a click.
     /// </summary>
     public class GameManager : MonoBehaviour
     {
         public static GameManager Instance { get; private set; }
 
         [Header("Environment")]
-        [Tooltip("If true, uses production Cognito settings; otherwise uses development basic credentials.")]
-        // Unused: kept only so the scene's serialized data is untouched.
-        [SerializeField] private bool _useProduction = false;
-
-        [Tooltip("Project-wide switch for which backend API endpoint to use. Local = http://localhost:5080 (safe default, always works). ApiDomain = https://api.nas.test:8443 via the optional local nginx proxy (NAS_Backend/nginx/README.md) - only works on a device that resolves api.nas.test (this Mac via /etc/hosts, or another device via dnsmasq's device-DNS override). ApiIp = same nginx proxy, addressed by raw LAN IP instead of the hostname - for a device on a network where nothing resolves api.nas.test (e.g. a phone hotspot without the dnsmasq override set up); update the ApiIp ApiSettings asset's URL when the LAN IP changes. Keep this at Local in anything committed/pushed, or teammates without that setup will have auth silently fail. AuthController reads this in Start() rather than owning its own toggle.")]
+        [Tooltip("Backend for the editor and development builds. A release build always uses Staging. Addresses are in Resources/Config. The committed value is Staging; switch it locally to test against your machine and do not commit that.")]
         [SerializeField] private AppEnvironment _environment = AppEnvironment.Local;
-        // What a build really uses, which is not always what is selected above: a release build
-        // ignores the dropdown (Production, or Staging with the NAS_STAGING_BUILD scripting
-        // define) so it cannot ship pointing at a developer machine. See EnvironmentPolicy.
-#if NAS_STAGING_BUILD
-        private const bool StagingBuild = true;
-#else
-        private const bool StagingBuild = false;
-#endif
-        public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild, StagingBuild);
-
-        [Tooltip("Used when CurrentEnvironment is Local. Single project-wide reference - every feature that talks to the API resolves its ApiSettings through EnvironmentResolver.Resolve(), which reads these three fields, instead of each controller wiring its own copies.")]
-        [SerializeField] private ApiSettings _apiSettings;
-        public ApiSettings ApiSettings => _apiSettings;
-
-        [Tooltip("Used when CurrentEnvironment is ApiDomain.")]
-        [SerializeField] private ApiSettings _apiDomainSettings;
-        public ApiSettings ApiDomainSettings => _apiDomainSettings;
-
-        [Tooltip("Used when CurrentEnvironment is ApiIp.")]
-        [SerializeField] private ApiSettings _apiIpSettings;
-        public ApiSettings ApiIpSettings => _apiIpSettings;
+        // Not always the dropdown: a release build ignores it (see EnvironmentPolicy).
+        public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild);
 
         [Header("Session")]
         public User CurrentUser { get; private set; }
         public string AccessToken { get; private set; }
         public VehicleInfo SelectedCar { get; private set; }
-        // The dealership the customer chose this login. Null until they pick
-        // one (reset on every login - they might be somewhere else today).
+        // Chosen fresh every login; null until the customer picks one.
         public DealershipInfo SelectedDealership { get; private set; }
-        // Last dealership picked on this device, remembered across launches
-        // only so the list can highlight it - never auto-selected.
+        // Only used to highlight the last choice in the list; never auto-selected.
         private const string LastDealershipIdPrefKey = "NAS.LastDealershipId";
         public int LastDealershipId => PlayerPrefs.GetInt(LastDealershipIdPrefKey, 0);
         public bool ReturnToEstimator { get; set; } = false;
-        // Set by ParentPageController once the splash card has been shown/dismissed
-        // for this app session, so returning to "Main App" from the AR scene (Back/
-        // Confirm both reload this scene) doesn't show the splash again every time -
-        // only once, on cold start. Lives here rather than as a scene-local bool on
-        // ParentPageController because that controller (and its GameObject) gets
-        // torn down and recreated on every "Main App" scene load; GameManager is the
-        // DontDestroyOnLoad singleton that actually survives across it.
+        // Lives here, not on ParentPageController, because that is recreated on every Main App load.
         public bool HasShownSplash { get; set; } = false;
-        // Set once AR Scene has been additively loaded for the first time this
-        // app session. AR Scene is deliberately never unloaded/reloaded after
-        // that - re-entering AR toggles visibility/tracking instead of a full
-        // scene reload, which is what was causing a black camera feed on the
-        // second+ entry (destroying and recreating ARSession/XROrigin is not
-        // the AR Foundation-documented pattern; disabling/re-enabling is).
+        public bool RestoringSession { get; set; } = false;
+        // The AR scene is loaded once and never unloaded: re-entering AR toggles it, because recreating
+        // ARSession/XROrigin caused a black camera feed on the second entry.
         public bool IsArSceneLoaded { get; set; } = false;
-        // Set by ArViewportController after the Confirm button's best-effort
-        // call to POST /api/customer/configurations succeeds (0 if that call
-        // hasn't happened yet or failed - matches the same "0 means unset"
-        // convention the backend already expects, since Unity's JsonUtility
-        // can't send a real null for an unset int). EstimatorCardController
-        // reads this directly (a plain field, no Session*Event) rather than
-        // reacting to a car-selection-style event, since nothing needs it
-        // synchronously as part of an event chain - it's just read later,
-        // once the Estimator screen is shown.
+        // Set after Confirm saves the configuration; 0 means unset (JsonUtility cannot send a null int).
         public int SelectedConfigurationId { get; set; } = 0;
-        // Server-assigned id from POST /api/telemetry/session, captured once
-        // StartTelemetrySession()'s best-effort call succeeds (0 = not
-        // started yet, or the call failed) - same "0 means unset" convention
-        // as SelectedConfigurationId above. Every other telemetry call
-        // (vehicle interactions, AR sessions, affordability sessions) needs
-        // this int, not a client-generated string id, to satisfy
-        // TelemetryService.ValidateCustomerSessionAsync on the backend.
+        public CustomizationSelection Customization { get; } = new CustomizationSelection();
+        // From POST /api/telemetry/session; 0 means not started or failed. Every other telemetry call needs it.
         public int TelemetrySessionId { get; set; } = 0;
-        // Guards EndTelemetrySession() against firing more than once - the
-        // app can background/foreground (OnApplicationPause toggling false
-        // then true) many times in one real usage session, and quit can
-        // follow a pause that already sent the end signal. Only the first
-        // call should count as "the session ended" (see EndTelemetrySession's
-        // own comment for why re-opening a session on resume isn't handled).
+        // Backgrounding fires pause many times and quit can follow; only the first counts as the end.
         private bool _telemetrySessionEnded = false;
-        // Set by SelectedCarModelLoader after each load attempt - true only
-        // if the customer's actual selected car model loaded (not a
-        // placeholder-prefab fallback from a download/parse/instantiate
-        // failure). Reset to false at the start of every attempt, before the
-        // async work begins. Read by ObjectPlacerController before sending
-        // AR-session telemetry on AR exit: an AR visit spent looking at (or
-        // immediately backing out of because of) a technical failure isn't
-        // genuine placement behaviour and shouldn't be recorded as if it
-        // were "customer looked and lost interest". Not event-chain-critical
-        // (nothing reacts to it synchronously) - just read later, same
-        // pattern as SelectedConfigurationId above.
+        // True only if the selected car's own model loaded (not the placeholder fallback). A visit spent on a
+        // load failure is not real placement behaviour, so ObjectPlacerController skips its AR telemetry.
         public bool CurrentArModelLoadSucceeded { get; set; } = false;
 
+        private const long ModelCacheBytes = 500L * 1024 * 1024;
         private ModelDownloader _modelDownloader;
 
-        // Times each screen the customer spends time on (see ScreenVisitTracker).
-        // Visits can finish before there is anywhere to send them - splash, login
-        // and register all come before the telemetry session exists - so they wait
-        // here and are sent as soon as it does.
+        // Visits that finish before the telemetry session exists (splash, login, register) wait in _pendingVisits.
         private ScreenVisitTracker _screens;
         private readonly System.Collections.Generic.List<ScreenVisitTracker.Visit> _pendingVisits =
             new System.Collections.Generic.List<ScreenVisitTracker.Visit>();
@@ -133,23 +68,13 @@ namespace NAS.Core
             }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            gameObject.AddComponent<AccentThemeRunner>();
 
-            _modelDownloader = new ModelDownloader(this);
+            _modelDownloader = new ModelDownloader(this, new ModelDiskCache(System.IO.Path.Combine(Application.persistentDataPath, "models"), ModelCacheBytes));
             _screens = new ScreenVisitTracker(OnScreenVisitFinished);
 
-            // Subscribing here rather than in OnEnable() is deliberate: Unity
-            // guarantees every object's Awake() finishes before any object's
-            // OnEnable() runs, within the same load - but does NOT guarantee
-            // Awake()/OnEnable() ordering ACROSS different GameObjects
-            // otherwise. This is what let a real bug happen: a UI controller
-            // read GameManager.AccessToken before GameManager's own handler
-            // for that login had run yet, sending an unauthenticated request
-            // ("Please sign in to continue" on device). The actual structural
-            // fix for THAT class of bug is the Session*Event pattern below
-            // (see AuthSucceededEvent/SessionAuthenticatedEvent's doc comments
-            // in GameEvents.cs) - subscribing here in Awake() is kept anyway
-            // as defense in depth, so GameManager is guaranteed ready before
-            // anything else in the scene, for any event it's ever given.
+            // Subscribed in Awake, not OnEnable, so GameManager is ready before anything else in the scene.
+            // (Session*Event is the real fix for subscribers reading state before it is set.)
             EventBus.Subscribe<AuthSucceededEvent>(OnAuthSucceeded);
             EventBus.Subscribe<ScreenShownEvent>(OnScreenShown);
             EventBus.Subscribe<DealershipSelectedEvent>(OnDealershipSelected);
@@ -158,6 +83,7 @@ namespace NAS.Core
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Subscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected += OnSessionRejected;
         }
 
@@ -171,17 +97,11 @@ namespace NAS.Core
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
+            EventBus.Unsubscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected -= OnSessionRejected;
         }
 
-        // OnApplicationPause(true) is the reliable "session ended" signal on
-        // mobile - most real sessions end with the user backgrounding the
-        // app (home button/app switcher), not force-quitting it, and a
-        // backgrounded app is NOT reliably given a chance to run further
-        // code once it's actually quit. OnApplicationQuit is kept too, as a
-        // fallback for platforms/cases where pause never fires before quit
-        // (e.g. stopping Play mode in the Editor) - _telemetrySessionEnded
-        // stops both from double-sending if pause already fired.
+        // Pause is the reliable end-of-session signal on mobile; quit is a fallback (e.g. stopping Play mode).
         private void OnApplicationPause(bool pauseStatus)
         {
             if (pauseStatus)
@@ -202,11 +122,7 @@ namespace NAS.Core
             EndTelemetrySession();
         }
 
-        // Publishing the Session*Event AFTER the field assignment (not
-        // before) is the actual guarantee here - it's what makes it
-        // structurally impossible for a subscriber to observe this event
-        // before the state it describes is set, regardless of subscription
-        // order. Don't reorder these.
+        // The Session*Event is published after the fields are set so no subscriber can see it early. Do not reorder.
         private void OnAuthSucceeded(AuthSucceededEvent evt)
         {
             CurrentUser = evt.User;
@@ -218,22 +134,19 @@ namespace NAS.Core
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
 
-        // "Sign Out" from the menu. Order matters: the screen the customer is leaving and the telemetry session
-        // both belong to THIS login, so they are closed (and sent with the old session id and token) before the
-        // state is cleared. Stop() closes the current screen visit for good; the Login screen shown next starts a
-        // fresh one. SessionEndedEvent goes out only after the state is cleared (see its doc comment).
-        // The server said our login token is no longer valid. Same clean-up as a sign-out (the existing pipeline: AuthController
-        // forgets the token, we clear the session, the router shows Login), then tell the Login screen why. Several
-        // requests can be rejected at once (catalog, telemetry, test drive...): only the first finds a token to drop,
-        // the rest see a signed-out session and do nothing.
         private void OnSessionRejected()
         {
             if (string.IsNullOrEmpty(AccessToken)) return;
-            Debug.LogWarning("GameManager: the server rejected the login token - signing out.");
-            EventBus.Publish(new LogoutRequestedEvent());
-            EventBus.Publish(new SessionExpiredEvent(SessionExpiryPolicy.Notice));
+            EventBus.Publish(new AccessTokenRejectedEvent());
         }
 
+        private void OnAccessTokenRefreshed(AccessTokenRefreshedEvent evt)
+        {
+            if (CurrentUser != null) AccessToken = evt.AccessToken;
+        }
+
+        // Close the screen visit and telemetry session first: they belong to this login and
+        // need its token and session id. SessionEndedEvent goes out only after the state is cleared.
         private void OnLogoutRequested(LogoutRequestedEvent evt)
         {
             _screens?.Stop();
@@ -244,6 +157,7 @@ namespace NAS.Core
             SelectedCar = null;
             SelectedDealership = null;
             SelectedConfigurationId = 0;
+            Customization.Clear();
             ReturnToEstimator = false;
             TelemetrySessionId = 0;
             _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
@@ -252,15 +166,14 @@ namespace NAS.Core
             EventBus.Publish(new SessionEndedEvent());
         }
 
-        // The server saved a profile edit: keep the name the rest of the app reads (menu header) current.
+        // Keeps the name in the menu header current after a profile edit.
         private void OnProfileUpdated(ProfileUpdatedEvent evt)
         {
             if (CurrentUser == null) return;
             CurrentUser.displayName = $"{evt.FirstName} {evt.LastName}".Trim();
         }
 
-        // Best-effort like all telemetry. Sent now if the session exists, otherwise
-        // held (up to a cap) and sent when StartTelemetrySession gets its id.
+        // Sent now if the session exists, otherwise held (capped) until StartTelemetrySession gets its id.
         private void OnScreenVisitFinished(ScreenVisitTracker.Visit visit)
         {
             if (TelemetrySessionId > 0 && !string.IsNullOrEmpty(AccessToken))
@@ -306,34 +219,28 @@ namespace NAS.Core
             var dealership = evt.Dealership;
             if (dealership == null || dealership.id <= 0) return;
 
-            // A car (and any saved configuration) from another dealership's
-            // catalog must not carry over.
+            // A car or configuration from another dealership's catalog must not carry over.
             var changed = SelectedDealership != null && SelectedDealership.id != dealership.id;
             if (SelectedDealership == null || changed)
             {
                 SelectedCar = null;
                 SelectedConfigurationId = 0;
+                Customization.Clear();
             }
             SelectedDealership = dealership;
             PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
             EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
             ApplyDealershipToTelemetrySession();
-            // Switching after already choosing is a signal in itself (picked the
-            // wrong place, or shopping around); the first choice is not.
+            // Only a switch is logged; the first choice is not a signal.
             if (changed)
                 LogActivityEvent("dealership_changed", 0);
         }
 
-        // The selected car's model could not be loaded - the customer is looking
-        // at a placeholder (or nothing), which explains an abandoned AR visit.
+        // Explains an abandoned AR visit: the customer was looking at a placeholder.
         private void OnArModelLoadFailed(ArModelLoadFailedEvent evt) =>
             LogActivityEvent("ar_load_failed", SelectedCar != null ? SelectedCar.id : 0);
 
-        // Tells the backend which dealership this session is for, so the
-        // lead/activity it produces is shown to that dealership's staff.
-        // Safe to call again (idempotent server-side). If the telemetry
-        // session hasn't started yet (id still 0), StartTelemetrySession's
-        // callback calls this once it has.
+        // Idempotent. If the session has no id yet, StartTelemetrySession calls this once it does.
         private void ApplyDealershipToTelemetrySession()
         {
             if (SelectedDealership == null || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
@@ -358,15 +265,13 @@ namespace NAS.Core
         {
             SelectedCar = evt.Vehicle;
             SelectedConfigurationId = 0; // belonged to whatever car was previously selected
+            Customization.Clear();
             EventBus.Publish(new SessionCarSelectedEvent(SelectedCar));
             LogVehicleViewedEvent(SelectedCar);
         }
         private void OnReturnToEstimatorRequested(ReturnToEstimatorRequestedEvent evt) => ReturnToEstimator = true;
 
-        // Best-effort, fire-and-forget - a failed/slow telemetry call must
-        // never block or delay login. TelemetrySessionId simply stays 0,
-        // which every other telemetry send treats as "session not ready,
-        // skip this call" rather than retrying or queuing.
+        // Best-effort: a failure leaves TelemetrySessionId at 0, which every other telemetry call treats as "skip".
         private void StartTelemetrySession()
         {
             if (string.IsNullOrEmpty(AccessToken)) return;
@@ -388,9 +293,9 @@ namespace NAS.Core
                 if (result.Success)
                 {
                     TelemetrySessionId = result.Value.id;
-                    // The customer may have picked a dealership before this call returned.
+                    // The dealership may have been picked before this returned.
                     ApplyDealershipToTelemetrySession();
-                    // Screens they already left (splash, login...) were waiting for this id.
+                    // Screens already left (splash, login) were waiting for this id.
                     FlushPendingScreenVisits();
                 }
                 else
@@ -398,16 +303,8 @@ namespace NAS.Core
             });
         }
 
-        // Closes out the session server-side so CustomerSession.EndedAt (and
-        // its computed DurationSeconds, which buyer-classification's
-        // SessionDuration feature reads) actually gets set - previously
-        // nothing ever called this and every session's duration was null
-        // forever. Only ends the FIRST time the app backgrounds or quits in
-        // a given login - a later resume keeps using the same
-        // TelemetrySessionId rather than opening a new session, so this
-        // deliberately doesn't try to model "session resumed after
-        // backgrounding" as a session boundary; that's a bigger design
-        // question than fixing the always-null duration.
+        // Sets EndedAt/DurationSeconds, which buyer classification reads. Ends only once per login: a later
+        // resume keeps the same session id rather than opening a new one.
         private void EndTelemetrySession()
         {
             if (_telemetrySessionEnded || TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
@@ -429,23 +326,14 @@ namespace NAS.Core
             });
         }
 
-        // Fires once per car selection (the "Start AR" tap), not per
-        // carousel swipe - CarSelectionScreenController doesn't currently
-        // publish anything on a card merely becoming centered, so this is
-        // the earliest real, stable hook for "customer looked at this car
-        // with intent" available today. Under-counts casual browsing
-        // compared to true per-swipe view tracking; a possible future
-        // enhancement, not something already being claimed here.
+        // Fires on car selection ("Start AR"), the earliest stable signal of intent; swiping is not tracked.
         private void LogVehicleViewedEvent(VehicleInfo vehicle)
         {
             if (vehicle == null || vehicle.id <= 0) return;
             LogActivityEvent("vehicle_viewed", vehicle.id);
         }
 
-        // Best-effort, same as every other telemetry send: skipped when the
-        // session isn't ready, a failure only logs a warning. vehicleId 0 means
-        // "no vehicle" (JsonUtility can't send a null int; the backend treats
-        // <= 0 as unset).
+        // vehicleId 0 means no vehicle (JsonUtility cannot send a null int).
         private void LogActivityEvent(string eventType, int vehicleId)
         {
             if (TelemetrySessionId <= 0 || string.IsNullOrEmpty(AccessToken)) return;
@@ -469,12 +357,11 @@ namespace NAS.Core
             });
         }
 
-        // The app holds no storage credentials: the API signs a short-lived link for the vehicle's model and the file is
-        // downloaded from that link (see ModelDownloader and NAS_Backend/docs/STORAGE.md).
-        public Task<Result<byte[]>> DownloadModel(int vehicleId)
+        // The API signs a short-lived link for the model; the app holds no storage credentials (see ModelDownloader).
+        public Task<Result<byte[]>> DownloadModel(int vehicleId, string modelKey)
         {
             if (string.IsNullOrEmpty(AccessToken)) return Task.FromResult(Result<byte[]>.Failure("Not signed in."));
-            return _modelDownloader.DownloadAsync(vehicleId, AccessToken);
+            return _modelDownloader.DownloadAsync(vehicleId, modelKey, AccessToken);
         }
     }
 }

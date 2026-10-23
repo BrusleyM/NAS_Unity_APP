@@ -40,5 +40,40 @@ namespace NAS.Tests
         {
             Assert.IsFalse(ModelVariantRules.IsHiddenByDefault(node));
         }
+
+        [TestCase("Wheels_B_FL", "Wheels", "B")]
+        [TestCase("Interior_A", "Interior", "A")]
+        [TestCase("Interior_B_DoorCard_RR", "Interior", "B")]
+        public void AVariantNodeSaysWhichGroupAndVariantItBelongsTo(string node, string group, string variant)
+        {
+            Assert.IsTrue(ModelVariantRules.TryGetVariant(node, out var g, out var v));
+            Assert.AreEqual(group, g);
+            Assert.AreEqual(variant, v);
+        }
+
+        [TestCase("Body")]
+        [TestCase("Wheels")]
+        [TestCase("Dashboard_Body")]
+        [TestCase(null)]
+        public void OtherNodesHaveNoVariant(string node)
+        {
+            Assert.IsFalse(ModelVariantRules.TryGetVariant(node, out _, out _));
+        }
+
+        [Test]
+        public void OnlyTheChosenVariantOfAGroupIsShown()
+        {
+            Assert.AreEqual(true, ModelVariantRules.ShouldShow("Wheels_B", "Wheels", "B"));
+            Assert.AreEqual(true, ModelVariantRules.ShouldShow("Wheels_B_FL", "Wheels", "B"));
+            Assert.AreEqual(false, ModelVariantRules.ShouldShow("Wheels_A", "Wheels", "B"));
+        }
+
+        [Test]
+        public void AGroupNeverTouchesAnotherGroupOrOrdinaryNodes()
+        {
+            Assert.IsNull(ModelVariantRules.ShouldShow("Interior_A", "Wheels", "B"));
+            Assert.IsNull(ModelVariantRules.ShouldShow("Body", "Wheels", "B"));
+            Assert.IsNull(ModelVariantRules.ShouldShow("Fixed_Tyre_FL", "Wheels", "B"));
+        }
     }
 }
