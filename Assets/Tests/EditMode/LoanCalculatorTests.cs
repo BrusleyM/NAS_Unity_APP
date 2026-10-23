@@ -54,6 +54,18 @@ namespace NAS.Tests
                 _calculator.CalculateMonthlyPayment(100000f, 250000f, 36, 12f), 0.01f);
         }
 
+        // The same cases are in the backend's LoanCalculatorTests, which decides the payment that is stored.
+        [TestCase(100000f, 0f, 60, 9f, 2075.84f)]
+        [TestCase(100000f, 30000f, 60, 9f, 1678.08f)]
+        [TestCase(100000f, 100000f, 36, 12f, 1000f)]
+        [TestCase(100000f, 40000f, 60, 0f, 1000f)]
+        [TestCase(250000f, 50000f, 72, 11.5f, 4337.40f)]
+        [TestCase(1000000f, 300000f, 84, 13.25f, 16142.21f)]
+        public void MatchesTheBackendFigures(float financed, float balloon, int months, float rate, float expected)
+        {
+            Assert.AreEqual(expected, _calculator.CalculateMonthlyPayment(financed, balloon, months, rate), 0.05f);
+        }
+
         [Test]
         public void NothingFinancedOrNoTermMeansNoPayment()
         {
