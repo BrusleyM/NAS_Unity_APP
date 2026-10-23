@@ -18,7 +18,7 @@ namespace NAS.Core
         public static GameManager Instance { get; private set; }
 
         [Header("Environment")]
-        [Tooltip("Backend for the editor and development builds. A release build always uses Staging. Addresses are in Resources/Config. Keep at Local when committing.")]
+        [Tooltip("Backend for the editor and development builds. A release build always uses Staging. Addresses are in Resources/Config. The committed value is Staging; switch it locally to test against your machine and do not commit that.")]
         [SerializeField] private AppEnvironment _environment = AppEnvironment.Local;
         // Not always the dropdown: a release build ignores it (see EnvironmentPolicy).
         public AppEnvironment CurrentEnvironment => EnvironmentPolicy.Effective(_environment, Debug.isDebugBuild);
