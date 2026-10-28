@@ -227,8 +227,10 @@ private void HandleLoginRequested(LoginRequestedEvent evt)
                     PublishTerms(_terms);
                     return;
                 }
-                Debug.LogWarning($"{LogPrefix} Terms could not be loaded. Status: {result.Error.StatusCode}.");
-                EventBus.Publish(new TermsLoadedEvent(null, null, result.Success ? "The terms could not be read." : result.Error.UserMessage));
+                // An older API without the terms endpoint, or no signal: show the bundled copy rather than block registration.
+                Debug.LogWarning($"{LogPrefix} Terms could not be loaded (status {result.Error.StatusCode}); using the bundled copy.");
+                _terms = TermsFallback.Create();
+                PublishTerms(_terms);
             });
         }
 
