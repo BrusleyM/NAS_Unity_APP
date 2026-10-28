@@ -27,9 +27,11 @@ namespace NAS.Core.Events
         public readonly string Email;
         public readonly string Password;
         public readonly string ConfirmPassword;
+        public readonly bool AcceptedTerms;
 
-        public RegisterRequestedEvent(string firstName, string lastName, string cellNumber, string email, string password, string confirmPassword)
+        public RegisterRequestedEvent(string firstName, string lastName, string cellNumber, string email, string password, string confirmPassword, bool acceptedTerms)
         {
+            AcceptedTerms = acceptedTerms;
             FirstName = firstName;
             LastName = lastName;
             CellNumber = cellNumber;
@@ -79,6 +81,25 @@ namespace NAS.Core.Events
         {
             User = user;
             AccessToken = accessToken;
+        }
+    }
+
+    /// <summary>Raised by RegisterCardController when it needs the terms and privacy notice (to show them and to know their version).</summary>
+    public readonly struct TermsRequestedEvent { }
+
+    /// <summary>Raised by AuthController with the terms, or with null and a reason when they could not be loaded.</summary>
+    public readonly struct TermsLoadedEvent
+    {
+        public readonly string Version;
+        /// <summary>Heading and body of each section, in order. Null when the terms could not be loaded.</summary>
+        public readonly IReadOnlyList<KeyValuePair<string, string>> Sections;
+        public readonly string FailureReason;
+
+        public TermsLoadedEvent(string version, IReadOnlyList<KeyValuePair<string, string>> sections, string failureReason = null)
+        {
+            Version = version;
+            Sections = sections;
+            FailureReason = failureReason;
         }
     }
 

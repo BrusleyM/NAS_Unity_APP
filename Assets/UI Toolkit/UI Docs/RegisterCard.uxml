@@ -58,6 +58,15 @@
             <ui:Label name="confirm-password-error-label" class="field-error" style="display: none;" />
         </ui:VisualElement>
 
+        <ui:VisualElement class="terms-row motion-item">
+            <ui:Toggle name="terms-toggle" class="terms-toggle" />
+            <ui:Label name="terms-link-label"
+                      text="I accept the &lt;link=&quot;terms&quot;&gt;&lt;color=#00D4FF&gt;terms and privacy notice&lt;/color&gt;&lt;/link&gt;"
+                      enable-rich-text="true"
+                      class="rich-text-link terms-label" />
+        </ui:VisualElement>
+        <ui:Label name="terms-error-label" class="field-error" style="display: none;" />
+
         <ui:Label name="register-error-label" class="form-error" style="display: none;" />
         <ui:Button name="register-button" class="gradient-button motion-item" style="margin-top: 8px;">
             <ui:Label text="Register" name="register-button-label" class="gradient-button-label"/>
