@@ -25,8 +25,8 @@
             <ui:Label text="The AR view uses your camera on the device to place the car in your space. The app does not upload camera images, and it does not collect your location." class="privacy-text motion-item"/>
 
             <ui:Label text="Your information" class="privacy-heading motion-item"/>
-            <ui:Label text="You can download a copy of what we hold about you, or delete your account, here." class="privacy-text motion-item"/>
-            <ui:Button name="privacy-my-data-button" text="Download my data" class="profile-action-button motion-item"/>
+            <ui:Label text="You can get a copy of what we hold about you, or delete your account, here." class="privacy-text motion-item"/>
+            <ui:Button name="privacy-my-data-button" text="Get a copy of my data" class="profile-action-button motion-item"/>
             <ui:Button name="privacy-delete-account-button" text="Delete my account" class="profile-action-button profile-action-button--danger motion-item"/>
 
             <ui:Label text="Questions" class="privacy-heading motion-item"/>

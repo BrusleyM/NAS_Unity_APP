@@ -96,9 +96,14 @@
     color: rgb(255, 85, 85);
 }
 
-.danger-button {
+/* Written as .gradient-button.danger-button so it outranks .gradient-button and its :hover (a bare .danger-button would turn blue when pressed). */
+.gradient-button.danger-button {
     background-color: rgba(255, 85, 85, 0.85);
     border-color: rgba(255, 85, 85, 0.6);
+}
+
+.gradient-button.danger-button:hover {
+    background-color: rgba(220, 50, 50, 0.95);
 }
 
 /* Privacy text sits on a glass card: the screen background is a busy image. */

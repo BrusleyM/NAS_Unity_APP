@@ -22,6 +22,8 @@ namespace NAS.Core.Auth
         private AuthSession _session;
         private bool _requestInProgress;
         private bool _refreshing;
+        // Counts sign-outs: a token refresh that started before one must not save a fresh login after it (Logout, and a deleted account, cancel it).
+        private int _generation;
         private float _nextCheckAt;
 
         private static readonly Regex EmailRegex = new Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
@@ -77,9 +79,15 @@ namespace NAS.Core.Auth
             }
 
             _refreshing = true;
+            var generation = _generation;
             _authApi.Refresh(new RefreshTokenRequest { refreshToken = _session.RefreshToken }, result =>
             {
                 _refreshing = false;
+                if (generation != _generation)
+                {
+                    if (restoring) FinishRestore(false);
+                    return;
+                }
                 if (result.Success && result.Value?.customer != null && !string.IsNullOrWhiteSpace(result.Value.accessToken))
                 {
                     _session.Apply(result.Value);
@@ -136,6 +144,7 @@ namespace NAS.Core.Auth
             EventBus.Subscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Subscribe<TermsRequestedEvent>(HandleTermsRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Subscribe<AccountDeletedEvent>(HandleAccountDeleted);
             EventBus.Subscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Subscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
             EventBus.Subscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
@@ -149,6 +158,7 @@ namespace NAS.Core.Auth
             EventBus.Unsubscribe<RegisterRequestedEvent>(HandleRegisterRequested);
             EventBus.Unsubscribe<TermsRequestedEvent>(HandleTermsRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(HandleLogoutRequested);
+            EventBus.Unsubscribe<AccountDeletedEvent>(HandleAccountDeleted);
             EventBus.Unsubscribe<AccessTokenRejectedEvent>(HandleAccessTokenRejected);
             EventBus.Unsubscribe<VerifyEmailRequestedEvent>(HandleVerifyEmailRequested);
             EventBus.Unsubscribe<ResendVerificationRequestedEvent>(HandleResendVerificationRequested);
@@ -157,6 +167,14 @@ namespace NAS.Core.Auth
         }
 
         private void HandleLogoutRequested(LogoutRequestedEvent evt) => Logout();
+
+        // The account is gone from the server, with its refresh tokens: forget this device's login now, so the Logout that follows has no token
+        // to send to the server and a refresh already on its way cannot save a new login for the deleted account.
+        private void HandleAccountDeleted(AccountDeletedEvent evt)
+        {
+            _generation++;
+            _session?.Logout();
+        }
 
 private void HandleLoginRequested(LoginRequestedEvent evt)
         {
@@ -473,6 +491,7 @@ private void HandleLoginRequested(LoginRequestedEvent evt)
         public void Logout()
         {
             Debug.Log($"{LogPrefix} Logout requested.");
+            _generation++;
             var refreshToken = _session?.RefreshToken;
             if (!string.IsNullOrEmpty(refreshToken) && _authApi != null)
                 _authApi.Logout(new RefreshTokenRequest { refreshToken = refreshToken }, _ => { });

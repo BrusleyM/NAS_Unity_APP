@@ -67,22 +67,22 @@ namespace NAS.UI.Controllers
                 return;
             }
 
-            var token = GameManager.Instance != null ? GameManager.Instance.AccessToken : null;
-            var resolved = EnvironmentResolver.Resolve(LogPrefix);
-            if (resolved.Settings == null || string.IsNullOrEmpty(token))
+            if (!ProfileApiAccess.TryPrepare(this, LogPrefix, ref _api, out var token))
             {
                 FormHelpers.SetMessage(_errorLabel, "Please sign in again.");
                 return;
             }
 
-            _api ??= new CustomerProfileApi(this, resolved.Settings, resolved.TrustAnyCertificate);
             SetBusy(true);
+            // From here a request already on its way may come back 401 once the account is gone: that must not read as an expired login.
+            GameManager.Instance.DeletionInFlight = true;
             _api.DeleteAccount(new DeleteAccountRequest { password = _password.value }, token, result =>
             {
                 if (this == null) return;
                 SetBusy(false);
                 if (!result.Success)
                 {
+                    if (GameManager.Instance != null) GameManager.Instance.DeletionInFlight = false;
                     Debug.LogWarning($"{LogPrefix} Delete failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
                     ShowServerError(result.Error.ErrorCode, result.Error.UserMessage);
                     return;
