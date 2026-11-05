@@ -78,6 +78,29 @@
     white-space: normal;
 }
 
+/* The two "your information" buttons on the Privacy screen, and the red button that deletes the account. */
+.profile-action-button {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-width: 1px;
+    border-color: rgba(0, 212, 255, 0.5);
+    border-radius: 12px;
+    color: rgb(0, 212, 255);
+    font-size: 14px;
+    -unity-text-align: middle-center;
+}
+
+.profile-action-button--danger {
+    border-color: rgba(255, 85, 85, 0.6);
+    color: rgb(255, 85, 85);
+}
+
+.danger-button {
+    background-color: rgba(255, 85, 85, 0.85);
+    border-color: rgba(255, 85, 85, 0.6);
+}
+
 /* Privacy text sits on a glass card: the screen background is a busy image. */
 .privacy-card {
     padding: 4px 16px 16px 16px;

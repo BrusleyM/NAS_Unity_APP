@@ -82,6 +82,7 @@ namespace NAS.Core
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Subscribe<AccountDeletedEvent>(OnAccountDeleted);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
             EventBus.Subscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected += OnSessionRejected;
@@ -96,6 +97,7 @@ namespace NAS.Core
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Unsubscribe<AccountDeletedEvent>(OnAccountDeleted);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
             EventBus.Unsubscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected -= OnSessionRejected;
@@ -143,6 +145,17 @@ namespace NAS.Core
         private void OnAccessTokenRefreshed(AccessTokenRefreshedEvent evt)
         {
             if (CurrentUser != null) AccessToken = evt.AccessToken;
+        }
+
+        // The server has deleted this customer's account, sessions and visits with it. Nothing more may be sent for them: it would be
+        // refused (401) and read as an expired login. The LogoutRequestedEvent that follows then finds nothing to end.
+        private void OnAccountDeleted(AccountDeletedEvent evt)
+        {
+            TelemetrySessionId = 0;
+            _telemetrySessionEnded = true;
+            _pendingVisits.Clear();
+            _screens?.Stop();          // its last visit now has no session id to go to, so it is only held...
+            _pendingVisits.Clear();    // ...and dropped here
         }
 
         // Close the screen visit and telemetry session first: they belong to this login and

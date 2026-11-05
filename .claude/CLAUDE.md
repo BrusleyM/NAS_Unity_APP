@@ -135,6 +135,21 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
 - The UXML `is-password` attribute is not reliable; set `isPasswordField = true` in code (as `LoginCardController` does).
 - The Privacy screen's text is a plain-language summary of what the app records today, written from the code. It makes no
   promises about retention or deletion - review it before release.
+- **Your rights (NAS-107, POPIA).** The Privacy screen has two buttons: **Download my data** (`MyDataController`, `UI/MyData`) and
+  **Delete my account** (`DeleteAccountController`, `UI/DeleteAccount`), routed like the other profile screens
+  (`MyDataRequestedEvent` / `DeleteAccountRequestedEvent` -> `ParentPageController`). Backend: `GET /api/customer/profile/export` and
+  `POST /api/customer/profile/delete-account` (NAS_Backend `CustomerProfileController`, `CustomerErasureService`).
+  - Download: `ApiClient.GetText` hands back the server's JSON as it is (not mirrored in DTOs, so it cannot drift); `DataExportDto` only
+    COUNTS the entries (empty `ExportRecord`s) for the one-sentence summary; the copy goes to the clipboard (a phone has no simple way to
+    save or share a text file from the app). The server caps each kind of activity at 5,000 rows (`DataRights.ExportRowCap`, mirrors
+    `CustomerDataExportDto.ExportRowCap`) and says so (`truncated`).
+  - Delete: needs the password (`invalid_password` is a 400, shown on the field, never an expired login). On success the controller
+    publishes `AccountDeletedEvent` (GameManager stops telemetry for the deleted account: its sessions are gone, a send would be 401 and
+    look like an expired login), then `LogoutRequestedEvent`, then `LoginNoticeEvent` with what was kept. Sold deals are kept by the
+    dealership for a while (`soldRecordsKept`, `soldRecordsKeptUntil`); the wording is `DataRights.DescribeDeletion`.
+  - All wording and its numbers are in `Core/DataRights.cs` (engine-free, `DataRightsTests`, linked into `CI/PureLogicTests`). The
+    screens' wiring is not covered by an automated test: check on a device (below).
+  - Apple (guideline 5.1.1(v)) requires in-app account deletion for an app that creates accounts, so this is also a store requirement.
 
 ## Expired login (session expiry)
 
