@@ -84,8 +84,8 @@ namespace NAS.Core
             string.IsNullOrEmpty(text) || Encoding.UTF8.GetByteCount(text) <= ClipboardLimitBytes;
 
         /// <summary>
-        /// Lays compact JSON out in lines and indents, so what is pasted can be read. Strings are left exactly as they are; empty
-        /// objects and lists stay on one line. It does not check that the text is valid JSON.
+        /// Lays compact JSON out in lines and indents, so what is pasted can be read. Strings are left as they are, except as below; empty
+        /// objects and lists stay on one line. The server's \\uXXXX escapes are turned back into the characters (see below). It does not check that the text is valid JSON.
         /// </summary>
         public static string PrettyPrintJson(string json)
         {
@@ -99,6 +99,15 @@ namespace NAS.Core
                 var c = json[i];
                 if (inString)
                 {
+                    // The server writes every non-ASCII character and some ASCII ones (an apostrophe, a plus sign) as \uXXXX. They are put back as
+                    // the characters they stand for, so "O'Connor" and "Müller" read as names. Quotes, backslashes, control characters and an
+                    // unpaired surrogate stay escaped, so the text is still valid JSON.
+                    if (!escaped && c == '\\' && TryReadUnicodeEscape(json, i, out var shown, out var length))
+                    {
+                        sb.Append(shown);
+                        i += length - 1;
+                        continue;
+                    }
                     sb.Append(c);
                     if (escaped) escaped = false;
                     else if (c == '\\') escaped = true;
@@ -155,6 +164,40 @@ namespace NAS.Core
             return DateTime.TryParseExact(isoDate.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
                 ? date.ToString("d MMMM yyyy", CultureInfo.InvariantCulture)
                 : null;
+        }
+
+        // At the backslash of \uXXXX: the character (or the surrogate pair) it stands for, and how many characters of the text it covers.
+        private static bool TryReadUnicodeEscape(string s, int at, out string shown, out int length)
+        {
+            shown = null;
+            length = 0;
+            if (!TryHex4(s, at, out var first)) return false;
+            if (char.IsHighSurrogate(first))
+            {
+                if (!TryHex4(s, at + 6, out var second) || !char.IsLowSurrogate(second)) return false;
+                shown = new string(new[] { first, second });
+                length = 12;
+                return true;
+            }
+            if (char.IsLowSurrogate(first) || first == '"' || first == '\\' || first < ' ') return false;
+            shown = first.ToString();
+            length = 6;
+            return true;
+        }
+
+        private static bool TryHex4(string s, int at, out char value)
+        {
+            value = default;
+            if (at + 6 > s.Length || s[at] != '\\' || s[at + 1] != 'u') return false;
+            var code = 0;
+            for (var k = 2; k < 6; k++)
+            {
+                var digit = Uri.IsHexDigit(s[at + k]) ? Convert.ToInt32(s[at + k].ToString(), 16) : -1;
+                if (digit < 0) return false;
+                code = code * 16 + digit;
+            }
+            value = (char)code;
+            return true;
         }
 
         private static int NextNonSpace(string s, int from)

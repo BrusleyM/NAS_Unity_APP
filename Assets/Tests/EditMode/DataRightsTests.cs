@@ -180,6 +180,47 @@ namespace NAS.Tests
             Assert.AreEqual(Strip(compact), Strip(pretty));
         }
 
+        [Test]
+        public void EscapedCharactersAreShownAsTheCharactersTheyStandFor()
+        {
+            // What the server sends for O'Connor, a plus in an email address, and Müller.
+            var pretty = DataRights.PrettyPrintJson("{\"name\":\"O\\u0027Connor\",\"email\":\"a\\u002Bb@example.com\",\"surname\":\"M\\u00FCller\"}");
+
+            StringAssert.Contains("\"name\": \"O'Connor\"", pretty);
+            StringAssert.Contains("\"email\": \"a+b@example.com\"", pretty);
+            StringAssert.Contains("\"surname\": \"M\u00FCller\"", pretty);
+        }
+
+        [Test]
+        public void ASurrogatePairIsPutBackAsOneCharacter()
+        {
+            var pretty = DataRights.PrettyPrintJson("{\"note\":\"hi \\uD83D\\uDE00\"}");
+
+            StringAssert.Contains("\"note\": \"hi \uD83D\uDE00\"", pretty);
+        }
+
+        [TestCase("\\u0022")]   // a quote would end the string
+        [TestCase("\\u005C")]   // a backslash would escape the next character
+        [TestCase("\\u000A")]   // a new line inside a string is not valid JSON
+        [TestCase("\\uD83D")]   // an unpaired surrogate
+        [TestCase("\\uDE00")]
+        [TestCase("\\u00zz")]   // not an escape at all
+        public void WhatWouldMakeTheTextInvalidOrUnclearStaysEscaped(string escape)
+        {
+            var pretty = DataRights.PrettyPrintJson("{\"x\":\"a" + escape + "b\"}");
+
+            StringAssert.Contains("a" + escape + "b", pretty);
+        }
+
+        [Test]
+        public void AnEscapedBackslashBeforeAUIsNotMistakenForAnEscape()
+        {
+            // The text is: a backslash then the letters u0027 (an escaped backslash followed by plain text).
+            var pretty = DataRights.PrettyPrintJson("{\"x\":\"\\\\u0027\"}");
+
+            StringAssert.Contains("\"x\": \"\\\\u0027\"", pretty);
+        }
+
         [TestCase(null)]
         [TestCase("")]
         public void NothingToPrintIsReturnedAsItIs(string json)

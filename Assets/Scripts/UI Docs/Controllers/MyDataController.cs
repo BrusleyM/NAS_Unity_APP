@@ -91,7 +91,7 @@ namespace NAS.UI.Controllers
                 else
                 {
                     _text = null;
-                    FormHelpers.SetMessage(_errorLabel, DataRights.TooLargeToCopy);
+                    FormHelpers.SetMessage(_statusLabel, DataRights.TooLargeToCopy);   // not a fault, so not the red error style
                 }
             });
         }
