@@ -195,6 +195,8 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
             EventBus.Subscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
+            EventBus.Subscribe<ArSupportChangedEvent>(OnArSupportChanged);
+            BuildArSupportNotice(root);
             ShowForCurrentCar();
         }
 
@@ -205,9 +207,41 @@ namespace NAS.UI.Controllers
         // no stale swatch selection from whatever car was showing last time),
         // called both on the first bind above and on every EnterArRequestedEvent
         // after that.
+        // When AR cannot start (no camera permission, an unsupported phone, Google Play Services for AR missing) the camera view stays black, so
+        // this says why. Built here, over the screen, and it lets touches through so Back still works. The check itself is in ObjectPlacerController.
+        private Label _arSupportNotice;
+
+        private void BuildArSupportNotice(VisualElement root)
+        {
+            _arSupportNotice = new Label { name = "ar-support-notice", pickingMode = PickingMode.Ignore };
+            var style = _arSupportNotice.style;
+            style.position = Position.Absolute;
+            style.left = 20; style.right = 20; style.top = 110;
+            style.paddingLeft = 16; style.paddingRight = 16; style.paddingTop = 14; style.paddingBottom = 14;
+            style.backgroundColor = new Color(0f, 0f, 0f, 0.8f);
+            style.color = Color.white;
+            style.fontSize = 15;
+            style.whiteSpace = WhiteSpace.Normal;
+            style.unityTextAlign = TextAnchor.MiddleCenter;
+            style.borderTopLeftRadius = 12; style.borderTopRightRadius = 12; style.borderBottomLeftRadius = 12; style.borderBottomRightRadius = 12;
+            style.display = DisplayStyle.None;
+            root.Add(_arSupportNotice);
+        }
+
+        private void OnArSupportChanged(ArSupportChangedEvent evt) => ApplyArSupport(ArSupport.Last);
+
+        private void ApplyArSupport(ArSupportProblem problem)
+        {
+            if (_arSupportNotice == null) return;
+            var message = ArSupport.MessageFor(problem);
+            _arSupportNotice.text = message ?? string.Empty;
+            _arSupportNotice.style.display = message == null ? DisplayStyle.None : DisplayStyle.Flex;
+        }
+
         private void ShowForCurrentCar()
         {
             ShowUi();
+            ApplyArSupport(ArSupport.Last);   // an answer that came before this screen was listening
 
             var selectedCar = GameManager.Instance != null ? GameManager.Instance.SelectedCar : null;
             if (_carNameLabel != null)
@@ -445,6 +479,7 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
             EventBus.Unsubscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
+            EventBus.Unsubscribe<ArSupportChangedEvent>(OnArSupportChanged);
 
             if (_backButton != null)
                 _backButton.clicked -= OnBackClicked;

@@ -297,6 +297,9 @@ namespace NAS.Core.Events
     /// <summary>Raised by ParentPageController when AR Scene is already loaded and the user is entering AR again (second+ visit this app session).</summary>
     public readonly struct EnterArRequestedEvent { }
 
+    /// <summary>Raised when the check made as AR opens has an answer. The answer itself is ArSupport.Last (NAS.Core; this assembly cannot see it).</summary>
+    public readonly struct ArSupportChangedEvent { }
+
     /// <summary>Raised by ArViewportController when the user backs out or confirms, to hand control back to ParentPageController without reloading either scene.</summary>
     public readonly struct ExitArRequestedEvent { }
 
