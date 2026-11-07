@@ -397,7 +397,7 @@ namespace NAS.UI.Controllers
                     _testDriveFailed = true;
                     Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
                     // The server says this dealership does not offer it: hide the pill instead of leaving a "Try again" that can never work.
-                    if (result.Error.ErrorCode == "feature_disabled") GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.TestDrive);
+                    if (result.Error.ErrorCode == DealershipFeatureSet.FeatureDisabledErrorCode) GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.TestDrive);
                 }
                 RefreshTestDriveButton();
             });

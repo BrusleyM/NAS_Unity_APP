@@ -259,7 +259,7 @@ namespace NAS.Core
             SelectedDealership = dealership;
             // Only a DIFFERENT dealership starts from everything on (the previous one's answer is not this one's). Choosing the one the customer already has keeps what is
             // known: a reload that fails must not switch a known-off feature back on.
-            if (SelectedDealership == null || changed || _featuresFor != dealership.id)
+            if (changed || _featuresFor != dealership.id)
                 SetFeatures(DealershipFeatureSet.AllOn);
             _featuresFor = dealership.id;
             LoadDealershipFeatures(dealership.id);

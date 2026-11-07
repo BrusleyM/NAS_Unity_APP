@@ -378,7 +378,7 @@ namespace NAS.UI.Controllers
                 {
                     Debug.LogError($"{LogPrefix} Submit failed: {result.Error.Detail}");
                     // The server says this dealership has the estimate switched off: remember it, so the estimate is not offered again.
-                    if (result.Error.ErrorCode == "feature_disabled") GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.Finance);
+                    if (result.Error.ErrorCode == DealershipFeatureSet.FeatureDisabledErrorCode) GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.Finance);
                     SetSendError(result.Error.UserMessage);
                     EventBus.Publish(new EstimateSubmissionFailedEvent());
                 }

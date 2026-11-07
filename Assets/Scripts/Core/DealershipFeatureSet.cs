@@ -20,6 +20,9 @@ namespace NAS.Core
         public const string Finance = "finance";
         public const string TestDrive = "test_drive";
 
+        /// <summary>The errorCode of the 403 the server answers when an action belongs to a feature the dealership does not have (NAS_Backend DealershipFeatures.ErrorCode).</summary>
+        public const string FeatureDisabledErrorCode = "feature_disabled";
+
         public static readonly DealershipFeatureSet AllOn = new DealershipFeatureSet(Array.Empty<string>());
 
         private readonly HashSet<string> _off;
