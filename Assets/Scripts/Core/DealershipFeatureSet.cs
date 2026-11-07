@@ -42,6 +42,24 @@ namespace NAS.Core
 
         public bool IsEnabled(string key) => string.IsNullOrEmpty(key) || !_off.Contains(key);
 
+        /// <summary>
+        /// This set with one more feature off: for when the server has just refused an action with 403 feature_disabled, which proves it is off whatever an earlier answer
+        /// (or a failed one) said. AR cannot be switched off, and an unknown or empty key changes nothing.
+        /// </summary>
+        public DealershipFeatureSet WithOff(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key == Ar || _off.Contains(key)) return this;
+            var off = new List<string>(_off) { key };
+            return new DealershipFeatureSet(off);
+        }
+
+        /// <summary>
+        /// Whether an answer about <paramref name="answeredDealershipId"/> still belongs to the customer: they are still looking at that dealership and are still signed in.
+        /// (A token that was refreshed meanwhile is fine: features belong to the dealership, not to the token.)
+        /// </summary>
+        public static bool AnswerStillApplies(int? selectedDealershipId, int answeredDealershipId, string accessToken) =>
+            selectedDealershipId.HasValue && selectedDealershipId.Value == answeredDealershipId && !string.IsNullOrEmpty(accessToken);
+
         /// <summary>The estimate (the finance calculator) after placing a car.</summary>
         public bool EstimateAvailable => IsEnabled(Finance);
 

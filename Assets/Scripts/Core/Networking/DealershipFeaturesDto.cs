@@ -5,7 +5,7 @@ namespace NAS.Core.Networking
     // Mirrors CustomerDealershipFeaturesDto from GET /api/customer/dealerships/{id}/features: only the features a customer sees (ar, finance, test_drive) and
     // whether each works for that dealership.
     [Serializable]
-    public sealed class FeatureStateDto
+    public sealed class CustomerFeatureDto
     {
         public string key;
         public bool enabled;
@@ -15,6 +15,6 @@ namespace NAS.Core.Networking
     public sealed class DealershipFeaturesResponse
     {
         public int dealershipId;
-        public FeatureStateDto[] features;
+        public CustomerFeatureDto[] features;
     }
 }

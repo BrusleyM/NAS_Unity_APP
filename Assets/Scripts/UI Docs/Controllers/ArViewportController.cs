@@ -245,6 +245,7 @@ namespace NAS.UI.Controllers
             SetElementVisible(_verticalOffsetSliderColumn, false);
             SetElementVisible(_settingsButtonRow, false);
             _testDriveFailed = false; // a failure belonged to the previous visit/car
+            GameManager.Instance?.RefreshFeatures();   // retries a first answer that failed or was late, and picks up a switch flipped meanwhile
             ApplyFeatures();
             RefreshTestDriveButton();
 
@@ -395,6 +396,8 @@ namespace NAS.UI.Controllers
                 {
                     _testDriveFailed = true;
                     Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
+                    // The server says this dealership does not offer it: hide the pill instead of leaving a "Try again" that can never work.
+                    if (result.Error.ErrorCode == "feature_disabled") GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.TestDrive);
                 }
                 RefreshTestDriveButton();
             });
@@ -796,15 +799,12 @@ namespace NAS.UI.Controllers
         // car selection - reusing that existing "return from AR" contract
         // rather than adding a new event for it.
         //
-        // When the owner has switched the estimate off for this dealership (the finance feature), there is no estimator to go to: the build is saved
-        // (above) and the customer goes back to car selection, as the Back button does. ReturnToEstimator stays false, so DecideInitialScreen shows
-        // car selection.
+        // When the owner has switched the estimate off for this dealership (the finance feature) there is no estimator to go to: the build is saved (above) and
+        // ParentPageController.DecideInitialScreen, which is the one place that decides, drops the flag and shows car selection, as the Back button does.
         private void ProceedToEstimator()
         {
             SendVehicleInteractionTelemetry();
-            var features = GameManager.Instance != null ? GameManager.Instance.Features : DealershipFeatureSet.AllOn;
-            if (features.EstimateAvailable)
-                EventBus.Publish(new ReturnToEstimatorRequestedEvent());
+            EventBus.Publish(new ReturnToEstimatorRequestedEvent());
             HideUi();
             EventBus.Publish(new ExitArRequestedEvent());
         }

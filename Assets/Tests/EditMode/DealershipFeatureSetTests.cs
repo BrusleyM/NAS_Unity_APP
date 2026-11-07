@@ -71,5 +71,72 @@ namespace NAS.Tests
             Assert.IsTrue(Set(("finance", true), ("test_drive", true)).EstimateAvailable);
             Assert.AreSame(DealershipFeatureSet.AllOn, Set(("finance", true), ("test_drive", true), ("ar", true)));
         }
+
+        // --- learning from a refusal ---------------------------------------------------------
+
+        [Test]
+        public void ARefusalTurnsThatFeatureOffWhateverAnEarlierAnswerSaid()
+        {
+            var features = DealershipFeatureSet.AllOn.WithOff(DealershipFeatureSet.TestDrive);
+
+            Assert.IsFalse(features.TestDriveAvailable);
+            Assert.IsTrue(features.EstimateAvailable);                    // only the one that was refused
+            Assert.IsTrue(DealershipFeatureSet.AllOn.TestDriveAvailable);   // the original set is not changed
+        }
+
+        [Test]
+        public void RefusalsAddUp_AndTheSameOneTwiceChangesNothing()
+        {
+            var both = DealershipFeatureSet.AllOn.WithOff(DealershipFeatureSet.Finance).WithOff(DealershipFeatureSet.TestDrive);
+            var once = DealershipFeatureSet.AllOn.WithOff(DealershipFeatureSet.Finance);
+
+            Assert.IsFalse(both.EstimateAvailable);
+            Assert.IsFalse(both.TestDriveAvailable);
+            Assert.AreSame(once, once.WithOff(DealershipFeatureSet.Finance));
+        }
+
+        [Test]
+        public void ArIsNeverTurnedOffByARefusalEither()
+        {
+            var features = DealershipFeatureSet.AllOn.WithOff(DealershipFeatureSet.Ar);
+
+            Assert.IsTrue(features.IsEnabled(DealershipFeatureSet.Ar));
+            Assert.AreSame(DealershipFeatureSet.AllOn, features);
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        public void NoKeyChangesNothing(string key)
+        {
+            Assert.AreSame(DealershipFeatureSet.AllOn, DealershipFeatureSet.AllOn.WithOff(key));
+        }
+
+        [Test]
+        public void AKnownOffStateSurvivesAFreshAllOnAnswerOnlyIfTheCallerKeepsIt()
+        {
+            // What GameManager relies on: a set that already has finance off keeps it through WithOff of something else.
+            var known = Set(("finance", false)).WithOff(DealershipFeatureSet.TestDrive);
+
+            Assert.IsFalse(known.EstimateAvailable);
+            Assert.IsFalse(known.TestDriveAvailable);
+        }
+
+        // --- which answers still belong to the customer --------------------------------------
+
+        [Test]
+        public void AnAnswerAboutTheDealershipTheyAreStillLookingAtAndSignedInAppliesButNoOtherDoes()
+        {
+            Assert.IsTrue(DealershipFeatureSet.AnswerStillApplies(4, 4, "token"));
+            Assert.IsFalse(DealershipFeatureSet.AnswerStillApplies(5, 4, "token"));       // chose another dealership meanwhile
+            Assert.IsFalse(DealershipFeatureSet.AnswerStillApplies(null, 4, "token"));    // no dealership now
+            Assert.IsFalse(DealershipFeatureSet.AnswerStillApplies(4, 4, null));          // signed out
+            Assert.IsFalse(DealershipFeatureSet.AnswerStillApplies(4, 4, ""));
+        }
+
+        [Test]
+        public void ARefreshedTokenDoesNotMatter_FeaturesBelongToTheDealershipNotTheToken()
+        {
+            Assert.IsTrue(DealershipFeatureSet.AnswerStillApplies(4, 4, "a-newer-token"));
+        }
     }
 }
