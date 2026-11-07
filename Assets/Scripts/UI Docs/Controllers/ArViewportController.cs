@@ -194,6 +194,7 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Subscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
+            EventBus.Subscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
             ShowForCurrentCar();
         }
 
@@ -244,6 +245,7 @@ namespace NAS.UI.Controllers
             SetElementVisible(_verticalOffsetSliderColumn, false);
             SetElementVisible(_settingsButtonRow, false);
             _testDriveFailed = false; // a failure belonged to the previous visit/car
+            ApplyFeatures();
             RefreshTestDriveButton();
 
             _colourChangeCount = 0;
@@ -315,6 +317,16 @@ namespace NAS.UI.Controllers
             SetElementVisible(_verticalOffsetSliderColumn, true);
             SetElementVisible(_settingsButtonRow, true);
         }
+
+        // The owner can switch "Request test drive" off per dealership; AR itself is never hidden. The server refuses the request either way.
+        private void ApplyFeatures()
+        {
+            if (_testDriveButton == null) return;
+            var features = GameManager.Instance != null ? GameManager.Instance.Features : DealershipFeatureSet.AllOn;
+            _testDriveButton.style.display = features.TestDriveAvailable ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void OnFeaturesChanged(DealershipFeaturesChangedEvent evt) => ApplyFeatures();
 
         private void RefreshTestDriveButton()
         {
@@ -429,6 +441,7 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Unsubscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
+            EventBus.Unsubscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
 
             if (_backButton != null)
                 _backButton.clicked -= OnBackClicked;
@@ -782,10 +795,16 @@ namespace NAS.UI.Controllers
         // DecideInitialScreen() checks to show the estimator card instead of
         // car selection - reusing that existing "return from AR" contract
         // rather than adding a new event for it.
+        //
+        // When the owner has switched the estimate off for this dealership (the finance feature), there is no estimator to go to: the build is saved
+        // (above) and the customer goes back to car selection, as the Back button does. ReturnToEstimator stays false, so DecideInitialScreen shows
+        // car selection.
         private void ProceedToEstimator()
         {
             SendVehicleInteractionTelemetry();
-            EventBus.Publish(new ReturnToEstimatorRequestedEvent());
+            var features = GameManager.Instance != null ? GameManager.Instance.Features : DealershipFeatureSet.AllOn;
+            if (features.EstimateAvailable)
+                EventBus.Publish(new ReturnToEstimatorRequestedEvent());
             HideUi();
             EventBus.Publish(new ExitArRequestedEvent());
         }

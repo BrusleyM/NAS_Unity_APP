@@ -33,6 +33,13 @@ namespace NAS.Core
         private const string LastDealershipIdPrefKey = "NAS.LastDealershipId";
         public int LastDealershipId => PlayerPrefs.GetInt(LastDealershipIdPrefKey, 0);
         public bool ReturnToEstimator { get; set; } = false;
+
+        /// <summary>
+        /// Which customer-facing features the chosen dealership has (NAS-108): the estimate and Request test drive can be switched off by the platform owner;
+        /// AR never is. Everything on until the server has answered, and again if it cannot (see <see cref="DealershipFeatureSet"/>).
+        /// </summary>
+        public DealershipFeatureSet Features { get; private set; } = DealershipFeatureSet.AllOn;
+        private IDealershipApi _featuresApi;
         // Lives here, not on ParentPageController, because that is recreated on every Main App load.
         public bool HasShownSplash { get; set; } = false;
         public bool RestoringSession { get; set; } = false;
@@ -179,6 +186,7 @@ namespace NAS.Core
             _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
             _pendingVisits.Clear();         // visits waiting for a session id belonged to the one that just ended
             DeletionInFlight = false;
+            Features = DealershipFeatureSet.AllOn;   // no event: the sign-out that follows brings up the sign-in screen
 
             EventBus.Publish(new SessionEndedEvent());
         }
@@ -245,12 +253,41 @@ namespace NAS.Core
                 Customization.Clear();
             }
             SelectedDealership = dealership;
+            SetFeatures(DealershipFeatureSet.AllOn);   // the previous dealership's answer is not this one's
+            LoadDealershipFeatures(dealership.id);
             PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
             EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
             ApplyDealershipToTelemetrySession();
             // Only a switch is logged; the first choice is not a signal.
             if (changed)
                 LogActivityEvent("dealership_changed", 0);
+        }
+
+        private void SetFeatures(DealershipFeatureSet features)
+        {
+            Features = features;
+            EventBus.Publish(new DealershipFeaturesChangedEvent());
+        }
+
+        // Asks which features this dealership has. A failure keeps everything on: the customer must not lose a feature to a bad connection (the server
+        // still refuses what really is off).
+        private void LoadDealershipFeatures(int dealershipId)
+        {
+            var resolved = EnvironmentResolver.Resolve("[NAS Features]");
+            if (resolved.Settings == null || string.IsNullOrEmpty(AccessToken)) return;
+
+            _featuresApi ??= new DealershipApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            _featuresApi.GetFeatures(dealershipId, AccessToken, result =>
+            {
+                // An answer that arrives after the customer chose another dealership, or signed out, is not theirs.
+                if (SelectedDealership == null || SelectedDealership.id != dealershipId || string.IsNullOrEmpty(AccessToken)) return;
+                if (!result.Success)
+                {
+                    Debug.LogWarning($"[NAS Features] Could not read the dealership's features ({result.Error.StatusCode}); keeping everything on.");
+                    return;
+                }
+                SetFeatures(DealershipFeaturesReader.ToFeatureSet(result.Value));
+            });
         }
 
         // Explains an abandoned AR visit: the customer was looking at a placeholder.

@@ -489,6 +489,12 @@ namespace NAS.Core.Events
     /// <summary>Raised by the menu's "Privacy" row.</summary>
     public readonly struct PrivacyRequestedEvent { }
 
+    /// <summary>
+    /// Published by GameManager when the features of the chosen dealership are known (or reset to everything on). Screens that hide a feature read
+    /// GameManager.Features and refresh on this, because the answer can arrive after a screen was shown.
+    /// </summary>
+    public readonly struct DealershipFeaturesChangedEvent { }
+
     /// <summary>Raised by the Privacy screen's "Download my data" button.</summary>
     public readonly struct MyDataRequestedEvent { }
 

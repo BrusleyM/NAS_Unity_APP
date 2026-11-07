@@ -159,6 +159,27 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
     `ChangePasswordController` still carry their own copy (move them over when next touched).
   - Apple (guideline 5.1.1(v)) requires in-app account deletion for an app that creates accounts, so this is also a store requirement.
 
+## Features the dealership has switched off (NAS-108)
+
+The platform owner switches features per dealership (NAS_Backend `PlatformFeatures`). The customer's app hides two of them, and **never hides AR** (it is the
+product itself; the server also refuses to switch it off).
+
+- `GameManager.OnDealershipSelected` resets `GameManager.Features` to everything on and asks `GET api/customer/dealerships/{id}/features`
+  (`DealershipApi.GetFeatures`); the answer becomes a `DealershipFeatureSet` (`Core/DealershipFeatureSet.cs`, engine-free, `DealershipFeatureSetTests` in
+  `CI/PureLogicTests`; `DealershipFeaturesReader` turns the DTO into one, `DealershipFeaturesReaderTests` run in Unity because they need JsonUtility) and
+  `DealershipFeaturesChangedEvent` is published. An answer for a dealership the customer has since left, or after a sign-out, is dropped.
+- **Everything is on until the server has answered, and if it cannot** (a bad connection, an older server): the customer must not lose a feature to a
+  failed call. The server still refuses what really is off (403 `feature_disabled`), so hiding is convenience, not security. A feature the app does
+  not know, or the server does not list, is on. Keys are matched exactly (`ar`, `finance`, `test_drive`). AR is on even if the server says otherwise.
+- **`finance` off = no estimate.** The AR confirm (checkmark) still saves the build (the dealership sees it in its Builds tab), then goes back to car
+  selection like Back: `ArViewportController.ProceedToEstimator` publishes `ReturnToEstimatorRequestedEvent` only when `Features.EstimateAvailable`.
+- **`test_drive` off = no "Request Test Drive" pill** in the AR view (`ArViewportController.ApplyFeatures`, on every AR visit and on
+  `DealershipFeaturesChangedEvent`).
+- A dealership with both off leaves a customer with AR and saving a build, and no way to send an enquiry: the owner's choice.
+- The screens' wiring is not covered by an automated test: check on a device (switch each feature off for a test dealership through
+  `PUT /api/platform/features/{dealershipId}/{key}`, reopen the app, and see the estimate or the pill gone; the owner site's Features page does not
+  call the API yet).
+
 ## Expired login (session expiry)
 
 The login token lasts 60 minutes on the server. Every API wrapper goes through `ApiClient`; when a request that carried a
