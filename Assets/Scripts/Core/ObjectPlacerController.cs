@@ -281,6 +281,16 @@ namespace NAS.Core
                     yield break;
                 }
             }
+#elif UNITY_IOS && !UNITY_EDITOR
+            if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
+            {
+                yield return Application.RequestUserAuthorization(UserAuthorization.WebCam);
+                if (!Application.HasUserAuthorization(UserAuthorization.WebCam))
+                {
+                    Report(ArSupportProblem.CameraPermissionDenied);
+                    yield break;
+                }
+            }
 #endif
             yield return ARSession.CheckAvailability();
             if (ARSession.state == ARSessionState.NeedsInstall)
