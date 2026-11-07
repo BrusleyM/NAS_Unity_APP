@@ -29,10 +29,7 @@
                 <ui:Label text="Email it to me" name="mydata-email-button-label" class="gradient-button-label"/>
                 <ui:VisualElement name="mydata-email-button-spinner" class="button-spinner" style="display: none;"/>
             </ui:Button>
-            <ui:Button name="mydata-get-button" class="gradient-button" style="margin-top: 8px;">
-                <ui:Label text="Get a copy of my data" name="mydata-get-button-label" class="gradient-button-label"/>
-                <ui:VisualElement name="mydata-get-button-spinner" class="button-spinner" style="display: none;"/>
-            </ui:Button>
+            <ui:Button name="mydata-get-button" text="Get a copy of my data" class="profile-action-button"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

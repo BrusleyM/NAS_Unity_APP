@@ -16,9 +16,9 @@ namespace NAS.UI.Controllers
     {
         private const string LogPrefix = "[NAS My data]";
 
-        private Label _summaryLabel, _warningLabel, _statusLabel, _errorLabel, _getLabel;
+        private Label _summaryLabel, _warningLabel, _statusLabel, _errorLabel;
         private Button _backButton, _getButton, _copyButton, _emailButton;
-        private VisualElement _spinner, _emailSpinner;
+        private VisualElement _emailSpinner;
         private Label _emailLabel;
 
         private ICustomerProfileApi _api;
@@ -37,8 +37,6 @@ namespace NAS.UI.Controllers
             _errorLabel = root.Q<Label>("profile-error-label");
             _backButton = root.Q<Button>("profile-back-button");
             _getButton = root.Q<Button>("mydata-get-button");
-            _getLabel = root.Q<Label>("mydata-get-button-label");
-            _spinner = root.Q<VisualElement>("mydata-get-button-spinner");
             _copyButton = root.Q<Button>("mydata-copy-button");
             _emailButton = root.Q<Button>("mydata-email-button");
             _emailLabel = root.Q<Label>("mydata-email-button-label");
@@ -74,11 +72,11 @@ namespace NAS.UI.Controllers
                 return;
             }
 
-            SetBusy(true);
+            SetBusy(true, _getButton);
             _api.ExportData(token, result =>
             {
                 if (this == null) return;
-                SetBusy(false);
+                SetBusy(false, _getButton);
                 if (!result.Success)
                 {
                     Debug.LogWarning($"{LogPrefix} Export failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
@@ -116,11 +114,12 @@ namespace NAS.UI.Controllers
                 return;
             }
 
-            SetBusy(true);
+            ShowCopyControls(false);   // an earlier copy is not left beside the "we emailed it" message
+            SetBusy(true, _emailButton);
             _api.EmailData(token, result =>
             {
                 if (this == null) return;
-                SetBusy(false);
+                SetBusy(false, _emailButton);
                 if (!result.Success)
                 {
                     Debug.LogWarning($"{LogPrefix} Email copy failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
@@ -146,11 +145,13 @@ namespace NAS.UI.Controllers
             FormHelpers.SetMessage(_statusLabel, "Copied. Paste it somewhere safe, then clear your clipboard.");
         }
 
-        private void SetBusy(bool busy)
+        // One request at a time: both buttons wait. Only Email (the main action) shows a spinner; Get is a plain button like Copy.
+        private void SetBusy(bool busy, Button tapped)
         {
             _busy = busy;
-            FormHelpers.SetSubmitting(_getButton, _getLabel, _spinner, busy);
-            FormHelpers.SetSubmitting(_emailButton, _emailLabel, _emailSpinner, busy);   // one request at a time: both buttons wait
+            if (tapped == _emailButton) FormHelpers.SetSubmitting(_emailButton, _emailLabel, _emailSpinner, busy);
+            else if (_emailButton != null) _emailButton.SetEnabled(!busy);
+            if (_getButton != null) _getButton.SetEnabled(!busy);
         }
 
         private void OnBackClicked() => EventBus.Publish(new CloseProfileScreenRequestedEvent());
