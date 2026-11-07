@@ -137,6 +137,26 @@ namespace NAS.Tests
         }
 
         [Test]
+        public void TheTooLargeMessagePointsToTheEmailButton()
+        {
+            StringAssert.Contains("Email it to me", DataRights.TooLargeToCopy);
+        }
+
+        [Test]
+        public void TheEmailedCopyMessageNamesTheHiddenAddress()
+        {
+            StringAssert.Contains("p***@example.com", DataRights.EmailedCopySent("p***@example.com"));
+        }
+
+        [TestCase(null)]
+        [TestCase("  ")]
+        public void TheEmailedCopyMessageStillReadsWithoutAnAddress(string sentTo)
+        {
+            StringAssert.DoesNotContain("emailed your copy to .", DataRights.EmailedCopySent(sentTo));
+            StringAssert.Contains("emailed your copy", DataRights.EmailedCopySent(sentTo));
+        }
+
+        [Test]
         public void TheWarningSaysToClearTheClipboardAndAboutKeyboardHistory()
         {
             StringAssert.Contains("clear your clipboard", DataRights.CopyWarning);

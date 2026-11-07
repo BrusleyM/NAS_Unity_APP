@@ -37,4 +37,11 @@ namespace NAS.Core.Auth.Dtos
         public List<ExportRecord> affordabilitySessions = new List<ExportRecord>();
         public List<ExportRecord> screenVisits = new List<ExportRecord>();
     }
+
+    /// <summary>POST /api/customer/profile/export/email: where the copy went, partly hidden ("p***@example.com").</summary>
+    [Serializable]
+    public sealed class EmailedDataCopyResponse
+    {
+        public string sentTo;
+    }
 }
