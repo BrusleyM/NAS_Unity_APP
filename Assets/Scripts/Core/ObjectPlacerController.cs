@@ -108,6 +108,7 @@ namespace NAS.Core
                 _planeManager.trackablesChanged.AddListener(OnPlanesChangedForStability);
 
             ResetArSessionTracking();
+            StartCoroutine(CheckArSupport());
         }
 
         private void OnDisable()
@@ -235,6 +236,53 @@ namespace NAS.Core
                 _planeManager.enabled = true;
             ResetUsedPlanes();
             ResetArSessionTracking();
+            StartCoroutine(CheckArSupport());
+        }
+
+        // Without this a phone that cannot run AR, or has no camera permission, shows a black camera view and says nothing. Asks for the
+        // camera, asks ARCore whether the phone supports it (and offers to install or update Google Play Services for AR), and reports why not.
+        private IEnumerator CheckArSupport()
+        {
+            Report(ArSupportProblem.None);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera))
+            {
+                var answered = false;
+                var granted = false;
+                var callbacks = new UnityEngine.Android.PermissionCallbacks();
+                callbacks.PermissionGranted += _ => { granted = true; answered = true; };
+                callbacks.PermissionDenied += _ => answered = true;
+                callbacks.PermissionDeniedAndDontAskAgain += _ => answered = true;
+                UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Camera, callbacks);
+                while (!answered) yield return null;
+                if (!granted)
+                {
+                    Report(ArSupportProblem.CameraPermissionDenied);
+                    yield break;
+                }
+            }
+#endif
+            yield return ARSession.CheckAvailability();
+            if (ARSession.state == ARSessionState.NeedsInstall)
+                yield return ARSession.Install();
+
+            switch (ARSession.state)
+            {
+                case ARSessionState.Unsupported:
+                    Report(ArSupportProblem.DeviceNotSupported);
+                    break;
+                case ARSessionState.NeedsInstall:
+                    Report(ArSupportProblem.ServicesMissing);
+                    break;
+            }
+        }
+
+        private static void Report(ArSupportProblem problem)
+        {
+            ArSupport.Report(problem);
+            if (problem != ArSupportProblem.None)
+                Debug.LogWarning($"[NAS AR] AR cannot start: {problem}.");
+            EventBus.Publish(new ArSupportChangedEvent());
         }
 
         private void OnExitAr(ExitArRequestedEvent evt)
