@@ -108,7 +108,7 @@ namespace NAS.Core
                 _planeManager.trackablesChanged.AddListener(OnPlanesChangedForStability);
 
             ResetArSessionTracking();
-            StartCoroutine(CheckArSupport());
+            StartArSupportCheck();
         }
 
         private void OnDisable()
@@ -230,13 +230,28 @@ namespace NAS.Core
         // the second+ AR entry - destroying and recreating it was the bug.
         private void OnEnterAr(EnterArRequestedEvent evt)
         {
-            if (_arSession != null)
-                _arSession.enabled = true;
+            // The session is switched on by CheckArSupport, once the camera is allowed and ARCore is ready (a session started before the
+            // camera dialog was answered can stay black after "Allow").
             if (_planeManager != null)
                 _planeManager.enabled = true;
             ResetUsedPlanes();
             ResetArSessionTracking();
-            StartCoroutine(CheckArSupport());
+            StartArSupportCheck();
+        }
+
+        private Coroutine _arSupportCheck;
+
+        // One check at a time: backing out and in again during the dialog must not leave a stale check to overwrite the newer answer.
+        private void StartArSupportCheck()
+        {
+            StopArSupportCheck();
+            _arSupportCheck = StartCoroutine(CheckArSupport());
+        }
+
+        private void StopArSupportCheck()
+        {
+            if (_arSupportCheck != null) StopCoroutine(_arSupportCheck);
+            _arSupportCheck = null;
         }
 
         // Without this a phone that cannot run AR, or has no camera permission, shows a black camera view and says nothing. Asks for the
@@ -248,14 +263,19 @@ namespace NAS.Core
             if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera))
             {
                 var answered = false;
-                var granted = false;
                 var callbacks = new UnityEngine.Android.PermissionCallbacks();
-                callbacks.PermissionGranted += _ => { granted = true; answered = true; };
+                callbacks.PermissionGranted += _ => answered = true;
                 callbacks.PermissionDenied += _ => answered = true;
                 callbacks.PermissionDeniedAndDontAskAgain += _ => answered = true;
                 UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Camera, callbacks);
-                while (!answered) yield return null;
-                if (!granted)
+                // Not only the callbacks: another request for the camera at the same moment can swallow them, and a person may take a while.
+                var waited = 0f;
+                while (!answered && !UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera) && waited < CameraDialogTimeoutSeconds)
+                {
+                    waited += Time.unscaledDeltaTime;
+                    yield return null;
+                }
+                if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Camera))
                 {
                     Report(ArSupportProblem.CameraPermissionDenied);
                     yield break;
@@ -266,16 +286,23 @@ namespace NAS.Core
             if (ARSession.state == ARSessionState.NeedsInstall)
                 yield return ARSession.Install();
 
-            switch (ARSession.state)
+            if (ARSession.state == ARSessionState.Unsupported)
             {
-                case ARSessionState.Unsupported:
-                    Report(ArSupportProblem.DeviceNotSupported);
-                    break;
-                case ARSessionState.NeedsInstall:
-                    Report(ArSupportProblem.ServicesMissing);
-                    break;
+                Report(ArSupportProblem.DeviceNotSupported);
+                yield break;
             }
+            if (ARSession.state == ARSessionState.NeedsInstall)
+            {
+                Report(ArSupportProblem.ServicesMissing);
+                yield break;
+            }
+
+            // Only now does tracking start.
+            if (_arSession != null)
+                _arSession.enabled = true;
         }
+
+        private const float CameraDialogTimeoutSeconds = 120f;
 
         private static void Report(ArSupportProblem problem)
         {
@@ -287,6 +314,7 @@ namespace NAS.Core
 
         private void OnExitAr(ExitArRequestedEvent evt)
         {
+            StopArSupportCheck();
             SendArSessionTelemetry();
             DisablePlacement();
             if (_planeManager != null)
@@ -298,6 +326,7 @@ namespace NAS.Core
         // Signed out while in AR: stop AR the way leaving does, without sending AR telemetry (the session is gone).
         private void OnSessionEnded(SessionEndedEvent evt)
         {
+            StopArSupportCheck();
             DisablePlacement();
             if (_planeManager != null)
                 _planeManager.enabled = false;
