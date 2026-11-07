@@ -194,6 +194,7 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Subscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Subscribe<CarPlacedEvent>(OnCarPlaced);
+            EventBus.Subscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
             ShowForCurrentCar();
         }
 
@@ -244,6 +245,8 @@ namespace NAS.UI.Controllers
             SetElementVisible(_verticalOffsetSliderColumn, false);
             SetElementVisible(_settingsButtonRow, false);
             _testDriveFailed = false; // a failure belonged to the previous visit/car
+            GameManager.Instance?.RefreshFeatures();   // retries a first answer that failed or was late, and picks up a switch flipped meanwhile
+            ApplyFeatures();
             RefreshTestDriveButton();
 
             _colourChangeCount = 0;
@@ -316,6 +319,16 @@ namespace NAS.UI.Controllers
             SetElementVisible(_settingsButtonRow, true);
         }
 
+        // The owner can switch "Request test drive" off per dealership; AR itself is never hidden. The server refuses the request either way.
+        private void ApplyFeatures()
+        {
+            if (_testDriveButton == null) return;
+            var features = GameManager.Instance != null ? GameManager.Instance.Features : DealershipFeatureSet.AllOn;
+            _testDriveButton.style.display = features.TestDriveAvailable ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void OnFeaturesChanged(DealershipFeaturesChangedEvent evt) => ApplyFeatures();
+
         private void RefreshTestDriveButton()
         {
             if (_testDriveButton == null) return;
@@ -383,6 +396,8 @@ namespace NAS.UI.Controllers
                 {
                     _testDriveFailed = true;
                     Debug.LogWarning($"{LogPrefix} Test drive request failed: {result.Error.Detail}");
+                    // The server says this dealership does not offer it: hide the pill instead of leaving a "Try again" that can never work.
+                    if (result.Error.ErrorCode == DealershipFeatureSet.FeatureDisabledErrorCode) GameManager.Instance?.MarkFeatureOff(DealershipFeatureSet.TestDrive);
                 }
                 RefreshTestDriveButton();
             });
@@ -429,6 +444,7 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<CarScaleChangedEvent>(OnCarScaleChanged);
             EventBus.Unsubscribe<ZoomCountsUpdatedEvent>(OnZoomCountsUpdated);
             EventBus.Unsubscribe<CarPlacedEvent>(OnCarPlaced);
+            EventBus.Unsubscribe<DealershipFeaturesChangedEvent>(OnFeaturesChanged);
 
             if (_backButton != null)
                 _backButton.clicked -= OnBackClicked;
@@ -782,6 +798,9 @@ namespace NAS.UI.Controllers
         // DecideInitialScreen() checks to show the estimator card instead of
         // car selection - reusing that existing "return from AR" contract
         // rather than adding a new event for it.
+        //
+        // When the owner has switched the estimate off for this dealership (the finance feature) there is no estimator to go to: the build is saved (above) and
+        // ParentPageController.DecideInitialScreen, which is the one place that decides, drops the flag and shows car selection, as the Back button does.
         private void ProceedToEstimator()
         {
             SendVehicleInteractionTelemetry();

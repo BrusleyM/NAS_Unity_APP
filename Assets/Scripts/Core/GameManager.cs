@@ -33,6 +33,15 @@ namespace NAS.Core
         private const string LastDealershipIdPrefKey = "NAS.LastDealershipId";
         public int LastDealershipId => PlayerPrefs.GetInt(LastDealershipIdPrefKey, 0);
         public bool ReturnToEstimator { get; set; } = false;
+
+        /// <summary>
+        /// Which customer-facing features the chosen dealership has (NAS-108): the estimate and Request test drive can be switched off by the platform owner;
+        /// AR never is. Everything on until the server has answered, and again if it cannot (see <see cref="DealershipFeatureSet"/>).
+        /// </summary>
+        public DealershipFeatureSet Features { get; private set; } = DealershipFeatureSet.AllOn;
+        private IDealershipApi _featuresApi;
+        private int _featuresFor;       // the dealership Features belongs to
+        private int _featuresRequest;   // counts the asks, so only the newest answer is applied
         // Lives here, not on ParentPageController, because that is recreated on every Main App load.
         public bool HasShownSplash { get; set; } = false;
         public bool RestoringSession { get; set; } = false;
@@ -179,6 +188,9 @@ namespace NAS.Core
             _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
             _pendingVisits.Clear();         // visits waiting for a session id belonged to the one that just ended
             DeletionInFlight = false;
+            Features = DealershipFeatureSet.AllOn;   // no event: the sign-out that follows brings up the sign-in screen
+            _featuresFor = 0;
+            _featuresRequest++;                       // an answer still on its way is no longer wanted
 
             EventBus.Publish(new SessionEndedEvent());
         }
@@ -245,6 +257,12 @@ namespace NAS.Core
                 Customization.Clear();
             }
             SelectedDealership = dealership;
+            // Only a DIFFERENT dealership starts from everything on (the previous one's answer is not this one's). Choosing the one the customer already has keeps what is
+            // known: a reload that fails must not switch a known-off feature back on.
+            if (changed || _featuresFor != dealership.id)
+                SetFeatures(DealershipFeatureSet.AllOn);
+            _featuresFor = dealership.id;
+            LoadDealershipFeatures(dealership.id);
             PlayerPrefs.SetInt(LastDealershipIdPrefKey, dealership.id);
             EventBus.Publish(new SessionDealershipSelectedEvent(dealership));
             ApplyDealershipToTelemetrySession();
@@ -252,6 +270,49 @@ namespace NAS.Core
             if (changed)
                 LogActivityEvent("dealership_changed", 0);
         }
+
+        private void SetFeatures(DealershipFeatureSet features)
+        {
+            Features = features;
+            EventBus.Publish(new DealershipFeaturesChangedEvent());
+        }
+
+        // Asks which features this dealership has. A failure keeps everything on: the customer must not lose a feature to a bad connection (the server
+        // still refuses what really is off).
+        private void LoadDealershipFeatures(int dealershipId)
+        {
+            var resolved = EnvironmentResolver.Resolve("[NAS Features]");
+            if (resolved.Settings == null || string.IsNullOrEmpty(AccessToken)) return;
+
+            _featuresApi ??= new DealershipApi(this, resolved.Settings, resolved.TrustAnyCertificate);
+            var request = ++_featuresRequest;
+            _featuresApi.GetFeatures(dealershipId, AccessToken, result =>
+            {
+                // An answer that arrives after the customer chose another dealership or signed out is not theirs, and an older answer must not overwrite a newer one.
+                if (request != _featuresRequest || !DealershipFeatureSet.AnswerStillApplies(SelectedDealership != null ? SelectedDealership.id : (int?)null, dealershipId, AccessToken)) return;
+                if (!result.Success)
+                {
+                    Debug.LogWarning($"[NAS Features] Could not read the dealership's features ({result.Error.StatusCode}); keeping everything on.");
+                    return;
+                }
+                SetFeatures(DealershipFeaturesReader.ToFeatureSet(result.Value));
+            });
+        }
+
+        /// <summary>
+        /// Asks again which features the chosen dealership has. Called whenever the AR view opens, so a first answer that failed or was late is retried and a switch the
+        /// owner flipped meanwhile is picked up. A failed ask changes nothing.
+        /// </summary>
+        public void RefreshFeatures()
+        {
+            if (SelectedDealership != null) LoadDealershipFeatures(SelectedDealership.id);
+        }
+
+        /// <summary>
+        /// The server refused an action with 403 feature_disabled, which proves the feature is off even if an earlier answer said otherwise (it failed, or the owner
+        /// switched it off meanwhile). Hides it from now on.
+        /// </summary>
+        public void MarkFeatureOff(string featureKey) => SetFeatures(Features.WithOff(featureKey));
 
         // Explains an abandoned AR visit: the customer was looking at a placeholder.
         private void OnArModelLoadFailed(ArModelLoadFailedEvent evt) =>

@@ -159,6 +159,33 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
     `ChangePasswordController` still carry their own copy (move them over when next touched).
   - Apple (guideline 5.1.1(v)) requires in-app account deletion for an app that creates accounts, so this is also a store requirement.
 
+## Features the dealership has switched off (NAS-108)
+
+The platform owner switches features per dealership (NAS_Backend `PlatformFeatures`). The customer's app hides two of them, and **never hides AR** (it is the
+product itself; the server also refuses to switch it off).
+
+- `GameManager.OnDealershipSelected` asks `GET api/customer/dealerships/{id}/features` (`DealershipApi.GetFeatures`); the answer becomes a `DealershipFeatureSet`
+  (`Core/DealershipFeatureSet.cs`, engine-free, `DealershipFeatureSetTests` in `CI/PureLogicTests`; `DealershipFeaturesReader` turns the DTO into one,
+  `DealershipFeaturesReaderTests` run in Unity because they need JsonUtility) held in `GameManager.Features`, and `DealershipFeaturesChangedEvent` is published.
+  `Features` starts from everything on only for a DIFFERENT dealership: choosing the one the customer already has keeps a known-off state through a reload that fails.
+- **Everything is on until the server has answered, and if it cannot** (a bad connection, an older server, a suspended dealership's 404): the customer must not lose a
+  feature to a failed call. The server still refuses what really is off (403 `feature_disabled`), so hiding is convenience, not security. A feature the app does
+  not know, or the server does not list, is on. Keys are matched exactly (`ar`, `finance`, `test_drive`). AR is on even if the server says otherwise.
+- **There is a way back from a wrong "on":** (a) `ArViewportController.ShowForCurrentCar` calls `GameManager.RefreshFeatures()` on every AR visit, so a first answer
+  that failed or was late is retried and a switch the owner flipped meanwhile is picked up; (b) a 403 `feature_disabled` from a test-drive request
+  (`ArViewportController`) or an estimate submit (`EstimatorCardController`) calls `GameManager.MarkFeatureOff(key)` (`DealershipFeatureSet.WithOff`), so a "Try again" that can
+  never work disappears. Only the newest answer is applied (`_featuresRequest`), and one for a dealership the customer has left, or after a sign-out, is dropped
+  (`DealershipFeatureSet.AnswerStillApplies`, pure and tested).
+- **`finance` off = no estimate.** The AR confirm (checkmark) still saves the build (the dealership sees it in its Builds tab) and publishes `ReturnToEstimatorRequestedEvent`
+  as before; **`ParentPageController.DecideInitialScreen` is the one place that decides**: it shows the estimator only when `Features.EstimateAvailable`, otherwise drops
+  `ReturnToEstimator` and shows car selection (so an answer that arrives after the checkmark is still respected). Nothing else shows the estimator.
+- **`test_drive` off = no "Request Test Drive" pill** in the AR view (`ArViewportController.ApplyFeatures`, on every AR visit and on `DealershipFeaturesChangedEvent`). The pill and the
+  settings gear are siblings in a centred row, so the gear sits alone in the middle when the pill is hidden.
+- A dealership with both off leaves a customer with AR and saving a build, and no way to send an enquiry: the owner's choice. With finance off the checkmark returns to car
+  selection with no message that the build was saved (a product call, not done).
+- The screens' wiring is not covered by an automated test: check on a device (the list is in NAS_Unity_APP PR 46; the owner site's Features page does not call the API yet,
+  so a switch is set through `PUT /api/platform/features/{dealershipId}/{key}`).
+
 ## Expired login (session expiry)
 
 The login token lasts 60 minutes on the server. Every API wrapper goes through `ApiClient`; when a request that carried a

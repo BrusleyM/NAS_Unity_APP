@@ -92,13 +92,16 @@ namespace NAS.UI.Controllers
             {
                 ShowDealershipSelectionScreen();
             }
-            else if (session.SelectedCar != null && session.ReturnToEstimator)
+            else if (session.SelectedCar != null && session.ReturnToEstimator && session.Features.EstimateAvailable)
             {
                 ShowEstimatorCard();
                 session.ReturnToEstimator = false;
             }
             else
             {
+                // The owner has switched the estimate off for this dealership (the finance feature): there is no estimator, so the flag is dropped and the customer
+                // lands on car selection, whenever and however the screen is chosen. The rule is here, in the one place that shows the estimator.
+                session.ReturnToEstimator = false;
                 ShowCarSelectionScreen();
             }
         }

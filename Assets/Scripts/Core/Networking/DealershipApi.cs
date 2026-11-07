@@ -19,5 +19,11 @@ namespace NAS.Core.Networking
             _coroutineRunner.StartCoroutine(_client.GetJson<CustomerDealershipListResponse>(
                 "api/customer/dealerships", completed, accessToken));
         }
+
+        public void GetFeatures(int dealershipId, string accessToken, Action<ApiResult<DealershipFeaturesResponse>> completed)
+        {
+            _coroutineRunner.StartCoroutine(_client.GetJson<DealershipFeaturesResponse>(
+                $"api/customer/dealerships/{dealershipId}/features", completed, accessToken));
+        }
     }
 }
