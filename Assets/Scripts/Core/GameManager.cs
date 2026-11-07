@@ -82,6 +82,7 @@ namespace NAS.Core
             EventBus.Subscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Subscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Subscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Subscribe<AccountDeletedEvent>(OnAccountDeleted);
             EventBus.Subscribe<ProfileUpdatedEvent>(OnProfileUpdated);
             EventBus.Subscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected += OnSessionRejected;
@@ -96,6 +97,7 @@ namespace NAS.Core
             EventBus.Unsubscribe<CarSelectedEvent>(OnCarSelected);
             EventBus.Unsubscribe<ReturnToEstimatorRequestedEvent>(OnReturnToEstimatorRequested);
             EventBus.Unsubscribe<LogoutRequestedEvent>(OnLogoutRequested);
+            EventBus.Unsubscribe<AccountDeletedEvent>(OnAccountDeleted);
             EventBus.Unsubscribe<ProfileUpdatedEvent>(OnProfileUpdated);
             EventBus.Unsubscribe<AccessTokenRefreshedEvent>(OnAccessTokenRefreshed);
             ApiClient.SessionRejected -= OnSessionRejected;
@@ -134,15 +136,29 @@ namespace NAS.Core
 
         private void OnScreenShown(ScreenShownEvent evt) => _screens?.Show(evt.ScreenName);
 
+        // True from the moment the customer confirms Delete my account until the sign-out or a failed answer. A request that was already on
+        // its way with the old token can come back 401 once the account is gone; that must not read as an expired login.
+        public bool DeletionInFlight { get; set; }
+
         private void OnSessionRejected()
         {
-            if (string.IsNullOrEmpty(AccessToken)) return;
+            if (DeletionInFlight || string.IsNullOrEmpty(AccessToken)) return;
             EventBus.Publish(new AccessTokenRejectedEvent());
         }
 
         private void OnAccessTokenRefreshed(AccessTokenRefreshedEvent evt)
         {
             if (CurrentUser != null) AccessToken = evt.AccessToken;
+        }
+
+        // The server has deleted this customer's account, sessions and visits with it. Nothing more may be sent for them: it would be
+        // refused (401) and read as an expired login. The LogoutRequestedEvent that follows then finds nothing to end.
+        private void OnAccountDeleted(AccountDeletedEvent evt)
+        {
+            TelemetrySessionId = 0;
+            _telemetrySessionEnded = true;
+            _screens?.Stop();          // its last visit now has no session id to go to, so it is only held...
+            _pendingVisits.Clear();    // ...and dropped here
         }
 
         // Close the screen visit and telemetry session first: they belong to this login and
@@ -162,6 +178,7 @@ namespace NAS.Core
             TelemetrySessionId = 0;
             _telemetrySessionEnded = false; // the next login opens a new session that can be ended again
             _pendingVisits.Clear();         // visits waiting for a session id belonged to the one that just ended
+            DeletionInFlight = false;
 
             EventBus.Publish(new SessionEndedEvent());
         }

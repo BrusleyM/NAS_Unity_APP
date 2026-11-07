@@ -24,6 +24,8 @@ namespace NAS.UI.Controllers
         private const string EditProfileUxmlPath = "UI/EditProfile";
         private const string ChangePasswordUxmlPath = "UI/ChangePassword";
         private const string PrivacyUxmlPath = "UI/Privacy";
+        private const string MyDataUxmlPath = "UI/MyData";
+        private const string DeleteAccountUxmlPath = "UI/DeleteAccount";
         // The screens for emailed codes load from Resources too, so they needed no scene edit.
         private const string VerifyEmailUxmlPath = "UI/VerifyEmail";
         private const string ForgotPasswordUxmlPath = "UI/ForgotPassword";
@@ -117,6 +119,8 @@ namespace NAS.UI.Controllers
             EventBus.Subscribe<EditProfileRequestedEvent>(OnEditProfileRequested);
             EventBus.Subscribe<ChangePasswordRequestedEvent>(OnChangePasswordRequested);
             EventBus.Subscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
+            EventBus.Subscribe<MyDataRequestedEvent>(OnMyDataRequested);
+            EventBus.Subscribe<DeleteAccountRequestedEvent>(OnDeleteAccountRequested);
             EventBus.Subscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Subscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Subscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
@@ -141,6 +145,8 @@ namespace NAS.UI.Controllers
             EventBus.Unsubscribe<EditProfileRequestedEvent>(OnEditProfileRequested);
             EventBus.Unsubscribe<ChangePasswordRequestedEvent>(OnChangePasswordRequested);
             EventBus.Unsubscribe<PrivacyRequestedEvent>(OnPrivacyRequested);
+            EventBus.Unsubscribe<MyDataRequestedEvent>(OnMyDataRequested);
+            EventBus.Unsubscribe<DeleteAccountRequestedEvent>(OnDeleteAccountRequested);
             EventBus.Unsubscribe<CloseProfileScreenRequestedEvent>(OnCloseProfileScreenRequested);
             EventBus.Unsubscribe<SessionEndedEvent>(OnSessionEnded);
             EventBus.Unsubscribe<EmailVerificationRequiredEvent>(OnEmailVerificationRequired);
@@ -257,6 +263,8 @@ namespace NAS.UI.Controllers
         private void OnEditProfileRequested(EditProfileRequestedEvent evt) => ShowProfileScreen(EditProfileUxmlPath, ScreenNames.EditProfile, typeof(EditProfileController));
         private void OnChangePasswordRequested(ChangePasswordRequestedEvent evt) => ShowProfileScreen(ChangePasswordUxmlPath, ScreenNames.ChangePassword, typeof(ChangePasswordController));
         private void OnPrivacyRequested(PrivacyRequestedEvent evt) => ShowProfileScreen(PrivacyUxmlPath, ScreenNames.Privacy, typeof(PrivacyController));
+        private void OnMyDataRequested(MyDataRequestedEvent evt) => ShowProfileScreen(MyDataUxmlPath, ScreenNames.MyData, typeof(MyDataController));
+        private void OnDeleteAccountRequested(DeleteAccountRequestedEvent evt) => ShowProfileScreen(DeleteAccountUxmlPath, ScreenNames.DeleteAccount, typeof(DeleteAccountController));
         private void OnCloseProfileScreenRequested(CloseProfileScreenRequestedEvent evt) => ShowCarSelectionScreen();
         // ShowUi() first: a sign-out can happen while the AR screen is up (an expired login), when this screen's UI is hidden.
         private void OnSessionEnded(SessionEndedEvent evt)
@@ -411,7 +419,7 @@ namespace NAS.UI.Controllers
         {
             typeof(SplashScreenController), typeof(LoginCardController), typeof(RegisterCardController),
             typeof(DealershipSelectionController), typeof(CarSelectionScreenController), typeof(EstimatorCardController),
-            typeof(EditProfileController), typeof(ChangePasswordController), typeof(PrivacyController),
+            typeof(EditProfileController), typeof(ChangePasswordController), typeof(PrivacyController), typeof(MyDataController), typeof(DeleteAccountController),
             typeof(VerifyEmailCardController), typeof(ForgotPasswordCardController), typeof(ResetPasswordCardController)
         };
 

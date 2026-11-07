@@ -53,6 +53,18 @@ namespace NAS.Core.Networking
             Complete(request, completed);
         }
 
+        /// <summary>GET that hands back the response body as it is (a copy of the customer's data is shown and copied whole, so it is not mirrored in a DTO).</summary>
+        public IEnumerator GetText(string path, Action<ApiResult<string>> completed, string bearerToken = null)
+        {
+            var request = BuildRequest(path, UnityWebRequest.kHttpVerbGET, jsonBody: null, bearerToken);
+            yield return request.SendWebRequest();
+            if (request.result == UnityWebRequest.Result.Success)
+                completed?.Invoke(ApiResult<string>.FromSuccess(request.downloadHandler.text));
+            else
+                Fail(request, completed);
+            request.Dispose();
+        }
+
         private UnityWebRequest BuildRequest(string path, string method, string jsonBody, string bearerToken)
         {
             var request = new UnityWebRequest($"{_settings.BaseUrl}/{path.TrimStart('/')}", method)
@@ -89,12 +101,17 @@ namespace NAS.Core.Networking
             }
             else
             {
-                var bearerSent = !string.IsNullOrEmpty(request.GetRequestHeader("Authorization"));
-                var expired = SessionExpiryPolicy.MeansSessionExpired(request.responseCode, bearerSent);
-                completed?.Invoke(ApiResult<TResponse>.FromError(ParseError(request)));
-                if (expired) SessionRejected?.Invoke();
+                Fail(request, completed);
             }
             request.Dispose();
+        }
+
+        private static void Fail<TResponse>(UnityWebRequest request, Action<ApiResult<TResponse>> completed)
+        {
+            var bearerSent = !string.IsNullOrEmpty(request.GetRequestHeader("Authorization"));
+            var expired = SessionExpiryPolicy.MeansSessionExpired(request.responseCode, bearerSent);
+            completed?.Invoke(ApiResult<TResponse>.FromError(ParseError(request)));
+            if (expired) SessionRejected?.Invoke();
         }
 
         private static ApiError ParseError(UnityWebRequest request)

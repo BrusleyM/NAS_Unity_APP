@@ -1,0 +1,32 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
+    <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/LoginScreen.uss"/>
+    <Style src="project://database/Assets/UI%20Toolkit/UI%20Docs/Styles/ProfileScreens.uss"/>
+    <ui:VisualElement name="delete-account-root" class="profile-root">
+        <ui:VisualElement class="profile-top-bar">
+            <ui:Button name="profile-back-button" text="&#8249; Back" class="profile-back-button"/>
+            <ui:VisualElement>
+                <ui:Label text="Delete my account" class="profile-title"/>
+                <ui:Label text="This cannot be undone." class="profile-subtitle motion-item"/>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:ScrollView class="profile-scroll" mode="Vertical">
+            <ui:VisualElement class="privacy-card">
+                <ui:Label name="delete-explanation-label" class="privacy-text motion-item" style="margin-top: 12px;"/>
+            </ui:VisualElement>
+            <ui:VisualElement class="input-group motion-item" style="margin-top: 16px;">
+                <ui:VisualElement class="field-label-row"><ui:Label text="Your password" class="field-label"/></ui:VisualElement>
+                <ui:TextField name="delete-password-field" placeholder="Enter your password to confirm" is-password="true" class="input-field"/>
+                <ui:Label name="delete-password-error-label" class="field-error" style="display: none;"/>
+            </ui:VisualElement>
+        </ui:ScrollView>
+
+        <ui:VisualElement class="profile-footer motion-item">
+            <ui:Label name="profile-error-label" class="form-error" style="display: none;"/>
+            <ui:Button name="profile-delete-button" class="gradient-button danger-button" style="margin-top: 8px;">
+                <ui:Label text="Permanently delete my account" name="profile-delete-button-label" class="gradient-button-label"/>
+                <ui:VisualElement name="profile-delete-button-spinner" class="button-spinner" style="display: none;"/>
+            </ui:Button>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

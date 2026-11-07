@@ -489,6 +489,19 @@ namespace NAS.Core.Events
     /// <summary>Raised by the menu's "Privacy" row.</summary>
     public readonly struct PrivacyRequestedEvent { }
 
+    /// <summary>Raised by the Privacy screen's "Download my data" button.</summary>
+    public readonly struct MyDataRequestedEvent { }
+
+    /// <summary>Raised by the Privacy screen's "Delete my account" button.</summary>
+    public readonly struct DeleteAccountRequestedEvent { }
+
+    /// <summary>
+    /// Raised by the Delete my account screen once the server has deleted the account, just before LogoutRequestedEvent. The account's
+    /// sessions and screen visits are gone from the server, so GameManager stops sending telemetry for them (it would be refused and
+    /// look like an expired login).
+    /// </summary>
+    public readonly struct AccountDeletedEvent { }
+
     /// <summary>Raised by Edit Profile / Change Password / Privacy when the customer is done (Back, or after a successful save).</summary>
     public readonly struct CloseProfileScreenRequestedEvent { }
 

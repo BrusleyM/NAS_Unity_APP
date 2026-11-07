@@ -135,6 +135,29 @@ controllers); finishing one publishes `CloseProfileScreenRequestedEvent`, which 
 - The UXML `is-password` attribute is not reliable; set `isPasswordField = true` in code (as `LoginCardController` does).
 - The Privacy screen's text is a plain-language summary of what the app records today, written from the code. It makes no
   promises about retention or deletion - review it before release.
+- **Your rights (NAS-107, POPIA).** The Privacy screen has two buttons: **Get a copy of my data** (`MyDataController`, `UI/MyData`) and
+  **Delete my account** (`DeleteAccountController`, `UI/DeleteAccount`), routed like the other profile screens
+  (`MyDataRequestedEvent` / `DeleteAccountRequestedEvent` -> `ParentPageController`). Backend: `GET /api/customer/profile/export` and
+  `POST /api/customer/profile/delete-account` (NAS_Backend `CustomerProfileController`, `CustomerErasureService`).
+  - Copy: `ApiClient.GetText` hands back the server's JSON as it is (not mirrored in DTOs, so it cannot drift); `DataExportReader` COUNTS the
+    entries (empty `ExportRecord`s in `DataExportDto`, proved to keep their length by `DataExportReaderTests`, which run in Unity) for the
+    one-sentence summary. The copy is laid out with `DataRights.PrettyPrintJson` and goes to the clipboard only if it fits
+    `DataRights.ClipboardLimitBytes` (500 KB: Android's clipboard channel is about 1 MB); a bigger one is not offered and the person is told to
+    email support. A warning (clear the clipboard; keyboards keep a history) sits beside the button, and the text is dropped when the screen is
+    left. The server caps each kind of activity at 5,000 rows (`DataRights.ExportRowCap`, mirrors `CustomerDataExportDto.ExportRowCap`).
+    Better later: have the server email the copy to the verified address (no clipboard, no size limit, a record of the request).
+  - Delete: needs the password (`invalid_password` is a 400, shown on the field, never an expired login). `GameManager.DeletionInFlight` is set
+    from the confirm until the sign-out (a request already on its way can come back 401 once the account is gone; `OnSessionRejected` ignores
+    it meanwhile). On success: `AccountDeletedEvent` (GameManager stops telemetry; AuthController forgets the login and bumps its generation, so
+    the Logout that follows sends nothing and a token refresh already on its way cannot save a new login), then `LogoutRequestedEvent`, then
+    `LoginNoticeEvent` with what was kept. The server sends ONE date for sold deals (the earliest); with several sales the wording does not
+    promise the same date for all (`DataRights.DescribeDeletion`), and the date is shown once, on the sign-in screen, so the screen says to make a note.
+  - AuthController's refresh callback is guarded by a generation counter that every sign-out bumps (the same hole existed for a plain logout).
+  - All wording and its numbers are in `Core/DataRights.cs` (engine-free, `DataRightsTests`, linked into `CI/PureLogicTests`). The screens'
+    wiring is not covered by an automated test: check on a device (list in NAS_Unity_APP PR 45).
+  - `ProfileApiAccess` is the shared "token + settings + API wrapper" preamble; the two new screens use it, `EditProfileController` and
+    `ChangePasswordController` still carry their own copy (move them over when next touched).
+  - Apple (guideline 5.1.1(v)) requires in-app account deletion for an app that creates accounts, so this is also a store requirement.
 
 ## Expired login (session expiry)
 
