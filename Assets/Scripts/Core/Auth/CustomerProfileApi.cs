@@ -31,6 +31,9 @@ namespace NAS.Core.Auth
         public void ExportData(string accessToken, Action<ApiResult<string>> completed) =>
             _coroutineRunner.StartCoroutine(_client.GetText("api/customer/profile/export", completed, accessToken));
 
+        public void EmailData(string accessToken, Action<ApiResult<EmailedDataCopyResponse>> completed) =>
+            _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/profile/export/email", new EmptyResponse(), completed, accessToken));
+
         public void DeleteAccount(DeleteAccountRequest request, string accessToken, Action<ApiResult<DeleteAccountResponse>> completed) =>
             _coroutineRunner.StartCoroutine(_client.PostJson("api/customer/profile/delete-account", request, completed, accessToken));
     }

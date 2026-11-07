@@ -15,7 +15,7 @@
                 <ui:Label text="What you get" class="privacy-heading motion-item"/>
                 <ui:Label text="Your account details, the cars you saved, the enquiries you sent to dealerships (as the dealership holds them), and a record of how you used the app." class="privacy-text motion-item"/>
                 <ui:Label text="How to keep it" class="privacy-heading motion-item"/>
-                <ui:Label text="Tap Get a copy of my data, then Copy to clipboard, and paste it somewhere safe, such as a note or an email to yourself." class="privacy-text motion-item"/>
+                <ui:Label text="Tap Email it to me and we send it as a file to your verified email address. Or tap Get a copy of my data, then Copy to clipboard, and paste it somewhere safe." class="privacy-text motion-item"/>
                 <ui:Label name="mydata-summary-label" class="privacy-text motion-item" style="display: none; margin-top: 12px;"/>
             </ui:VisualElement>
         </ui:ScrollView>
@@ -25,10 +25,11 @@
             <ui:Label name="profile-status-label" class="form-success" style="display: none;"/>
             <ui:Label name="profile-error-label" class="form-error" style="display: none;"/>
             <ui:Button name="mydata-copy-button" text="Copy to clipboard" class="profile-action-button" style="display: none;"/>
-            <ui:Button name="mydata-get-button" class="gradient-button" style="margin-top: 8px;">
-                <ui:Label text="Get a copy of my data" name="mydata-get-button-label" class="gradient-button-label"/>
-                <ui:VisualElement name="mydata-get-button-spinner" class="button-spinner" style="display: none;"/>
+            <ui:Button name="mydata-email-button" class="gradient-button" style="margin-top: 8px;">
+                <ui:Label text="Email it to me" name="mydata-email-button-label" class="gradient-button-label"/>
+                <ui:VisualElement name="mydata-email-button-spinner" class="button-spinner" style="display: none;"/>
             </ui:Button>
+            <ui:Button name="mydata-get-button" text="Get a copy of my data" class="profile-action-button"/>
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

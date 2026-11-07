@@ -35,7 +35,13 @@ namespace NAS.Core
             "Paste it somewhere safe, then clear your clipboard. Some keyboards keep a history of what you copy, and your other devices may receive it.";
 
         public static readonly string TooLargeToCopy =
-            $"Your copy is too large to copy from here. Email {SupportEmail} and we will send it to you.";
+            $"Your copy is too large to copy from here. Tap Email it to me, or email {SupportEmail} and we will send it to you.";
+
+        /// <summary>Shown after the server sent the copy. <paramref name="sentTo"/> is the partly hidden address the server answers with.</summary>
+        public static string EmailedCopySent(string sentTo) =>
+            string.IsNullOrWhiteSpace(sentTo)
+                ? "We emailed your copy to your address. It can take a few minutes to arrive."
+                : $"We emailed your copy to {sentTo}. It can take a few minutes to arrive. Delete the email once you have saved it.";
 
         /// <summary>Null when the password is fine to send. The server checks that it is the right one.</summary>
         public static string ValidateDeletionPassword(string password) =>

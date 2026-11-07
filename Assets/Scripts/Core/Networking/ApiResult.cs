@@ -32,8 +32,10 @@ namespace NAS.Core.Networking
             TraceId = traceId;
         }
 
-        public string UserMessage => string.IsNullOrWhiteSpace(Detail)
-            ? "Something went wrong. Please try again later."
-            : Detail;
+        public const string OfflineMessage = "Could not reach the server. Check your connection and try again.";
+
+        public string UserMessage => !string.IsNullOrWhiteSpace(Detail) ? Detail
+            : StatusCode == 0 ? OfflineMessage   // no answer at all: offline, or timed out
+            : "Something went wrong. Please try again later.";
     }
 }

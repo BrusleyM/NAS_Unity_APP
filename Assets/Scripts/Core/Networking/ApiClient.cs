@@ -116,14 +116,23 @@ namespace NAS.Core.Networking
 
         private static ApiError ParseError(UnityWebRequest request)
         {
-            var problem = string.IsNullOrWhiteSpace(request.downloadHandler?.text)
-                ? null
-                : JsonUtility.FromJson<ApiProblemDetailsDto>(request.downloadHandler.text);
+            // A proxy can answer with HTML (a 502 or 503): that is not a problem body, and a throw here would leave the screen waiting forever.
+            ApiProblemDetailsDto problem = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(request.downloadHandler?.text))
+                    problem = JsonUtility.FromJson<ApiProblemDetailsDto>(request.downloadHandler.text);
+            }
+            catch (ArgumentException)
+            {
+                problem = null;
+            }
 
+            // request.error is Unity's own English text ("Cannot connect to destination host"): not shown to a customer, so not the detail.
             return new ApiError(
                 request.responseCode,
                 problem?.errorCode,
-                problem?.detail ?? request.error,
+                problem?.detail,
                 problem?.traceId);
         }
     }

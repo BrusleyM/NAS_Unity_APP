@@ -16,9 +16,10 @@ namespace NAS.UI.Controllers
     {
         private const string LogPrefix = "[NAS My data]";
 
-        private Label _summaryLabel, _warningLabel, _statusLabel, _errorLabel, _getLabel;
-        private Button _backButton, _getButton, _copyButton;
-        private VisualElement _spinner;
+        private Label _summaryLabel, _warningLabel, _statusLabel, _errorLabel;
+        private Button _backButton, _getButton, _copyButton, _emailButton;
+        private VisualElement _emailSpinner;
+        private Label _emailLabel;
 
         private ICustomerProfileApi _api;
         private string _text;
@@ -36,15 +37,17 @@ namespace NAS.UI.Controllers
             _errorLabel = root.Q<Label>("profile-error-label");
             _backButton = root.Q<Button>("profile-back-button");
             _getButton = root.Q<Button>("mydata-get-button");
-            _getLabel = root.Q<Label>("mydata-get-button-label");
-            _spinner = root.Q<VisualElement>("mydata-get-button-spinner");
             _copyButton = root.Q<Button>("mydata-copy-button");
+            _emailButton = root.Q<Button>("mydata-email-button");
+            _emailLabel = root.Q<Label>("mydata-email-button-label");
+            _emailSpinner = root.Q<VisualElement>("mydata-email-button-spinner");
 
             if (_warningLabel != null) _warningLabel.text = DataRights.CopyWarning;   // one tested wording, not a copy in the UXML
 
             if (_backButton != null) _backButton.clicked += OnBackClicked;
             if (_getButton != null) _getButton.clicked += OnGetClicked;
             if (_copyButton != null) _copyButton.clicked += OnCopyClicked;
+            if (_emailButton != null) _emailButton.clicked += OnEmailClicked;
         }
 
         private void OnDisable()
@@ -52,6 +55,7 @@ namespace NAS.UI.Controllers
             if (_backButton != null) _backButton.clicked -= OnBackClicked;
             if (_getButton != null) _getButton.clicked -= OnGetClicked;
             if (_copyButton != null) _copyButton.clicked -= OnCopyClicked;
+            if (_emailButton != null) _emailButton.clicked -= OnEmailClicked;
             _text = null;   // personal information is not held longer than the screen needs it
         }
 
@@ -68,11 +72,11 @@ namespace NAS.UI.Controllers
                 return;
             }
 
-            SetBusy(true);
+            SetBusy(true, _getButton);
             _api.ExportData(token, result =>
             {
                 if (this == null) return;
-                SetBusy(false);
+                SetBusy(false, _getButton);
                 if (!result.Success)
                 {
                     Debug.LogWarning($"{LogPrefix} Export failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
@@ -96,6 +100,36 @@ namespace NAS.UI.Controllers
             });
         }
 
+        // The server sends the copy to the customer's own verified address; nothing personal comes back to the device but the hidden address.
+        // Its sentences for "not verified", "too soon" and "could not send" are written for the customer, so they are shown as they are.
+        private void OnEmailClicked()
+        {
+            if (_busy) return;
+            FormHelpers.SetMessage(_errorLabel, null);
+            FormHelpers.SetMessage(_statusLabel, null);
+
+            if (!ProfileApiAccess.TryPrepare(this, LogPrefix, ref _api, out var token))
+            {
+                FormHelpers.SetMessage(_errorLabel, "Please sign in again.");
+                return;
+            }
+
+            ShowCopyControls(false);   // an earlier copy is not left beside the "we emailed it" message
+            SetBusy(true, _emailButton);
+            _api.EmailData(token, result =>
+            {
+                if (this == null) return;
+                SetBusy(false, _emailButton);
+                if (!result.Success)
+                {
+                    Debug.LogWarning($"{LogPrefix} Email copy failed. Status {result.Error.StatusCode}, code {result.Error.ErrorCode ?? "unknown"}.");
+                    FormHelpers.SetMessage(_errorLabel, result.Error.UserMessage);
+                    return;
+                }
+                FormHelpers.SetMessage(_statusLabel, DataRights.EmailedCopySent(result.Value?.sentTo));
+            });
+        }
+
         private void ShowCopyControls(bool show)
         {
             var display = show ? DisplayStyle.Flex : DisplayStyle.None;
@@ -111,10 +145,13 @@ namespace NAS.UI.Controllers
             FormHelpers.SetMessage(_statusLabel, "Copied. Paste it somewhere safe, then clear your clipboard.");
         }
 
-        private void SetBusy(bool busy)
+        // One request at a time: both buttons wait. Only Email (the main action) shows a spinner; Get is a plain button like Copy.
+        private void SetBusy(bool busy, Button tapped)
         {
             _busy = busy;
-            FormHelpers.SetSubmitting(_getButton, _getLabel, _spinner, busy);
+            if (tapped == _emailButton) FormHelpers.SetSubmitting(_emailButton, _emailLabel, _emailSpinner, busy);
+            else if (_emailButton != null) _emailButton.SetEnabled(!busy);
+            if (_getButton != null) _getButton.SetEnabled(!busy);
         }
 
         private void OnBackClicked() => EventBus.Publish(new CloseProfileScreenRequestedEvent());
